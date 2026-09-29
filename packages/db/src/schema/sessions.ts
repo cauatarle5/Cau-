@@ -1,7 +1,7 @@
 import { index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
-import { createdAt, idColumn } from './columns.js';
-import { users } from './users.js';
+import { createdAt, idColumn } from './columns';
+import { users } from './users';
 
 export const sessions = pgTable(
   'sessions',

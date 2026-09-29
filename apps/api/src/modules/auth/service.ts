@@ -1,16 +1,16 @@
 import type { User } from '@atlas/db';
 import type { LoginInput, RegisterInput, UserPublic } from '@atlas/schemas';
 
-import { AppError } from '../../lib/errors.js';
+import { AppError } from '../../lib/errors';
 
-import { hashPassword, verifyPassword } from './password.js';
-import type { AuthRepository } from './repository.js';
+import { hashPassword, verifyPassword } from './password';
+import type { AuthRepository } from './repository';
 import {
   generateSessionToken,
   hashSessionToken,
   SESSION_RENEW_THRESHOLD_MS,
   SESSION_TTL_MS,
-} from './tokens.js';
+} from './tokens';
 
 export interface ClientInfo {
   userAgent: string | null;

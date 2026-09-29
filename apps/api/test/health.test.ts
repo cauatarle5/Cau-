@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { createTestApp, type TestContext } from './helpers.js';
+import { createTestApp, type TestContext } from './helpers';
 
 describe('GET /api/v1/health', () => {
   let ctx: TestContext;

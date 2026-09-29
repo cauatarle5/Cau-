@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { loginInputSchema, registerInputSchema } from './auth.js';
-import { errorCodeSchema } from './errors.js';
+import { loginInputSchema, registerInputSchema } from './auth';
+import { errorCodeSchema } from './errors';
 
 describe('registerInputSchema', () => {
   it('normalizes e-mail and trims name', () => {

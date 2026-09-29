@@ -1,0 +1,52 @@
+@import 'tailwindcss';
+
+/* Tokens: fundo neutro, uma cor de destaque (PROMPT_MESTRE 12.7). */
+:root {
+  --background: oklch(0.985 0 0);
+  --foreground: oklch(0.18 0 0);
+  --card: oklch(1 0 0);
+  --muted: oklch(0.955 0 0);
+  --muted-foreground: oklch(0.45 0 0);
+  --border: oklch(0.9 0 0);
+  --primary: oklch(0.55 0.16 250);
+  --primary-foreground: oklch(0.99 0 0);
+  --destructive: oklch(0.55 0.2 27);
+  --ring: oklch(0.55 0.16 250);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: oklch(0.16 0 0);
+    --foreground: oklch(0.96 0 0);
+    --card: oklch(0.2 0 0);
+    --muted: oklch(0.24 0 0);
+    --muted-foreground: oklch(0.7 0 0);
+    --border: oklch(0.3 0 0);
+    --primary: oklch(0.7 0.14 250);
+    --primary-foreground: oklch(0.15 0 0);
+    --destructive: oklch(0.68 0.19 27);
+    --ring: oklch(0.7 0.14 250);
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-destructive: var(--destructive);
+  --color-ring: var(--ring);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-feature-settings: 'tnum';
+}

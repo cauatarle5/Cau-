@@ -9,10 +9,10 @@ import {
   registerInputSchema,
 } from '@atlas/schemas';
 
-import { AppError, unauthorized } from '../../lib/errors.js';
+import { AppError, unauthorized } from '../../lib/errors';
 
-import type { AuthContext, AuthService, ClientInfo } from './service.js';
-import { SESSION_COOKIE } from './tokens.js';
+import type { AuthContext, AuthService, ClientInfo } from './service';
+import { SESSION_COOKIE } from './tokens';
 
 declare module 'fastify' {
   interface FastifyRequest {

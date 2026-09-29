@@ -104,3 +104,4 @@ Todo bug corrigido ganha teste. Mudança de fórmula atualiza o caso de teste co
 - Seeds idempotentes: `pnpm db:seed` e `pnpm db:seed:demo` (90 dias).
 - Feature flags por env.
 - Evolução (P16.6): mudanças de schema aditivas; destrutiva exige duas etapas + ADR; quebra de contrato só em `/api/v2`.
+- Imports relativos sem extensão (`moduleResolution: "Bundler"`), pois o Turbopack não mapeia `.js` → `.ts` em pacotes do workspace.

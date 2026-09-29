@@ -1,6 +1,6 @@
 import { pgTable, text } from 'drizzle-orm/pg-core';
 
-import { citext, createdAt, idColumn, updatedAt } from './columns.js';
+import { citext, createdAt, idColumn, updatedAt } from './columns';
 
 export const users = pgTable('users', {
   id: idColumn(),

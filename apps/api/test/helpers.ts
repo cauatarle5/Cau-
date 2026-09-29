@@ -5,8 +5,8 @@ import { inject } from 'vitest';
 
 import { createDb, type DbHandle } from '@atlas/db';
 
-import { buildApp } from '../src/app.js';
-import type { AppConfig } from '../src/config.js';
+import { buildApp } from '../src/app';
+import type { AppConfig } from '../src/config';
 
 export const WEB_ORIGIN = 'http://localhost:3000';
 

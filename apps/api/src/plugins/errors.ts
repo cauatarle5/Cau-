@@ -4,7 +4,7 @@ import { hasZodFastifySchemaValidationErrors } from 'fastify-type-provider-zod';
 
 import type { ErrorCode, ProblemDetails } from '@atlas/schemas';
 
-import { AppError } from '../lib/errors.js';
+import { AppError } from '../lib/errors';
 
 const PROBLEM_TYPE_BASE = 'https://atlas.local/problems/';
 

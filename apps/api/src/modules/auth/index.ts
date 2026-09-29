@@ -1,4 +1,4 @@
-export { authRoutes } from './routes.js';
-export { createAuthRepository } from './repository.js';
-export { createAuthService } from './service.js';
-export { SESSION_COOKIE, hashSessionToken } from './tokens.js';
+export { authRoutes } from './routes';
+export { createAuthRepository } from './repository';
+export { createAuthService } from './service';
+export { SESSION_COOKIE, hashSessionToken } from './tokens';

@@ -1,7 +1,7 @@
 import { createDb } from '@atlas/db';
 
-import { buildApp } from './app.js';
-import { loadConfig } from './config.js';
+import { buildApp } from './app';
+import { loadConfig } from './config';
 
 const config = loadConfig();
 const { db, close } = createDb(config.databaseUrl);

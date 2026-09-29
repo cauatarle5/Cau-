@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { eq, sessions, users } from '@atlas/db';
 
-import { hashSessionToken } from '../src/modules/auth/index.js';
+import { hashSessionToken } from '../src/modules/auth/index';
 
 import {
   createTestApp,
@@ -11,7 +11,7 @@ import {
   uniqueEmail,
   WEB_ORIGIN,
   type TestContext,
-} from './helpers.js';
+} from './helpers';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

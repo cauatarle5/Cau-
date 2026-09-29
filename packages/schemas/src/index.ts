@@ -1,5 +1,5 @@
-import './locale.js';
+import './locale';
 
-export * from './errors.js';
-export * from './auth.js';
-export * from './health.js';
+export * from './errors';
+export * from './auth';
+export * from './health';

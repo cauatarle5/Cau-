@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { lbToKg, roundTo } from './index.js';
+import { lbToKg, roundTo } from './index';
 
 describe('roundTo', () => {
   it.each([

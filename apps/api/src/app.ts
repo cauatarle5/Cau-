@@ -11,11 +11,11 @@ import {
 
 import type { Database } from '@atlas/db';
 
-import type { AppConfig } from './config.js';
-import { authRoutes, createAuthRepository, createAuthService } from './modules/auth/index.js';
-import { healthRoutes } from './modules/health/index.js';
-import { errorsPlugin } from './plugins/errors.js';
-import { securityPlugin } from './plugins/security.js';
+import type { AppConfig } from './config';
+import { authRoutes, createAuthRepository, createAuthService } from './modules/auth/index';
+import { healthRoutes } from './modules/health/index';
+import { errorsPlugin } from './plugins/errors';
+import { securityPlugin } from './plugins/security';
 
 export interface BuildAppOptions {
   config: AppConfig;

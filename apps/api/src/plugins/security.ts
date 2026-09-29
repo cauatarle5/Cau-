@@ -5,7 +5,7 @@ import rateLimit from '@fastify/rate-limit';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
-import { AppError } from '../lib/errors.js';
+import { AppError } from '../lib/errors';
 
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
