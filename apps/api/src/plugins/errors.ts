@@ -69,7 +69,7 @@ export const errorsPlugin = fp((app: FastifyInstance) => {
       // Erros do próprio Fastify (JSON malformado, content-type, corpo grande).
       return send(reply, request, {
         status: error.statusCode,
-        code: 'VALIDATION_ERROR',
+        code: 'BAD_REQUEST',
         title: 'Requisição inválida',
         detail: error.message,
       });

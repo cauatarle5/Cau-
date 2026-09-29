@@ -30,8 +30,8 @@ export async function buildApp({ config, db }: BuildAppOptions): Promise<Fastify
       level: config.logLevel,
       redact: ['req.headers.cookie', 'res.headers["set-cookie"]'],
     },
-    // Só confia em proxy local (o rewrite do Next em dev); revisar no deploy (ADR-007).
-    trustProxy: 'loopback',
+    // Padrão: só o proxy local (rewrite do Next em dev); configurar no deploy (ADR-014).
+    trustProxy: config.trustProxy,
     logController: new LogController({ requestIdLogLabel: 'request_id' }),
     genReqId: (req) => {
       const incoming = req.headers['x-request-id'];

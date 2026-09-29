@@ -8,7 +8,13 @@ const envSchema = z.object({
   API_HOST: z.string().default('0.0.0.0'),
   API_PORT: z.coerce.number().int().positive().default(3001),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
-  WEB_ORIGIN: z.url().default('http://localhost:3000'),
+  // Normalizado para o formato do header Origin (sem barra final).
+  WEB_ORIGIN: z
+    .url()
+    .default('http://localhost:3000')
+    .transform((u) => new URL(u).origin),
+  // Proxies confiáveis para X-Forwarded-For: `loopback` ou lista de IPs/CIDRs separada por vírgula.
+  TRUST_PROXY: z.string().default('loopback'),
   COOKIE_SECURE: booleanString.optional(),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(5),
 });
@@ -23,6 +29,7 @@ export interface AppConfig {
   cookieSecure: boolean;
   /** Tentativas por minuto em login (por IP e por e-mail) e cadastro (por IP). */
   authRateLimitMax: number;
+  trustProxy: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -36,5 +43,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     webOrigin: parsed.WEB_ORIGIN,
     cookieSecure: parsed.COOKIE_SECURE ?? parsed.NODE_ENV === 'production',
     authRateLimitMax: parsed.AUTH_RATE_LIMIT_MAX,
+    trustProxy: parsed.TRUST_PROXY,
   };
 }

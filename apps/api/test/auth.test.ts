@@ -220,6 +220,25 @@ describe('auth', () => {
   });
 
   describe('POST /auth/logout', () => {
+    it('rejects logout from a foreign Origin (CSRF) and keeps the session', async () => {
+      const { cookie } = await registerUser(ctx.app);
+      const res = await ctx.app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/logout',
+        headers: { cookie, origin: 'https://evil.example' },
+      });
+      expect(res.statusCode).toBe(403);
+      const body = res.json<{ code: string; requestId: string }>();
+      expect(body.code).toBe('ORIGIN_FORBIDDEN');
+      expect(body.requestId).toBe(res.headers['x-request-id']);
+      const me = await ctx.app.inject({
+        method: 'GET',
+        url: '/api/v1/auth/me',
+        headers: { cookie },
+      });
+      expect(me.statusCode).toBe(200);
+    });
+
     it('invalidates the session and clears the cookie', async () => {
       const { cookie, user } = await registerUser(ctx.app);
       const res = await ctx.app.inject({
@@ -316,5 +335,49 @@ describe('auth rate limits', () => {
       statuses.push(res.statusCode);
     }
     expect(statuses).toEqual([401, 401, 401, 401, 401, 429]);
+  });
+
+  it('sends Retry-After when the per-e-mail limit is hit', async () => {
+    const email = uniqueEmail();
+    let last;
+    for (let i = 0; i < 6; i++) {
+      last = await ctx.app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        remoteAddress: `10.1.0.${i + 1}`,
+        payload: { email, password: 'qualquer-senha' },
+      });
+    }
+    expect(last?.statusCode).toBe(429);
+    expect(Number(last?.headers['retry-after'])).toBeGreaterThan(0);
+  });
+
+  it('limits registrations per IP to 5 per minute', async () => {
+    const statuses: number[] = [];
+    for (let i = 0; i < 6; i++) {
+      const res = await ctx.app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/register',
+        remoteAddress: '10.8.8.8',
+        payload: { name: 'X', email: uniqueEmail(), password: 'senha-segura-123' },
+      });
+      statuses.push(res.statusCode);
+    }
+    expect(statuses).toEqual([201, 201, 201, 201, 201, 429]);
+  });
+
+  it('ignores a spoofed X-Forwarded-For from a non-trusted peer', async () => {
+    const statuses: number[] = [];
+    for (let i = 0; i < 6; i++) {
+      const res = await ctx.app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        remoteAddress: '203.0.113.7',
+        headers: { 'x-forwarded-for': `198.51.100.${i + 1}` },
+        payload: { email: uniqueEmail(), password: 'qualquer-senha' },
+      });
+      statuses.push(res.statusCode);
+    }
+    expect(statuses.at(-1)).toBe(429);
   });
 });

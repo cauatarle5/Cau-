@@ -3,6 +3,7 @@ import { z } from 'zod';
 /** Códigos de erro estáveis da API (RFC 7807 `code`). */
 export const errorCodes = [
   'VALIDATION_ERROR',
+  'BAD_REQUEST',
   'NOT_FOUND',
   'UNAUTHORIZED',
   'ORIGIN_FORBIDDEN',

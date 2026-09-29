@@ -76,3 +76,9 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
 - **Status:** aceita
 - **Contexto:** P3.5 pede cliente derivado dos schemas Zod, sem tipos à mão.
 - **Decisão:** wrapper `fetch` tipado com `z.infer` dos schemas de `@atlas/schemas`, que também valida respostas. Geração a partir do OpenAPI só se o wrapper deixar de bastar.
+
+## ADR-014: Proxy confiável e origin do front configuráveis
+- **Status:** aceita
+- **Contexto:** revisão da Fase 0: com `trustProxy` fixo em loopback, web e api em hosts diferentes fariam todos os usuários compartilharem o mesmo IP no rate limit; `WEB_ORIGIN` com barra final bloquearia toda escrita.
+- **Decisão:** `TRUST_PROXY` por env (`loopback` padrão ou lista de IPs/CIDRs separada por vírgula), repassado ao Fastify. `WEB_ORIGIN` normalizado para `URL.origin`. Erros 4xx do framework (JSON malformado, content-type, corpo grande) usam o código `BAD_REQUEST`, separado de `VALIDATION_ERROR`. O limite por e-mail no login devolve `Retry-After`.
+- **Consequências:** o deploy (Fase 8) precisa definir `TRUST_PROXY` e `WEB_ORIGIN` corretos. O limitador por e-mail em memória (LRU de 5000 chaves) pode perder contadores sob carga de muitos e-mails distintos; um store compartilhado entra junto com a ADR de múltiplas instâncias.

@@ -26,6 +26,17 @@ describe('GET /api/v1/health', () => {
     expect(generated.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
   });
 
+  it('maps framework 4xx errors to BAD_REQUEST', async () => {
+    const res = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      headers: { 'content-type': 'application/json' },
+      payload: '{not json',
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
   it('returns RFC 7807 404 for unknown routes', async () => {
     const res = await ctx.app.inject({ method: 'GET', url: '/api/v1/does-not-exist' });
     expect(res.statusCode).toBe(404);

@@ -55,8 +55,8 @@ const invalidCredentials = () =>
 
 export function createAuthService(repo: AuthRepository, now: () => Date = () => new Date()) {
   // Hash usado para gastar o mesmo tempo quando o e-mail não existe (ADR-009).
-  let dummyHash: Promise<string> | undefined;
-  const getDummyHash = () => (dummyHash ??= hashPassword('atlas-timing-equalizer'));
+  // Calculado já na criação para a primeira requisição não ser mais lenta.
+  const dummyHash = hashPassword('atlas-timing-equalizer');
 
   async function issueSession(user: User, client: ClientInfo): Promise<IssuedSession> {
     const token = generateSessionToken();
@@ -91,7 +91,7 @@ export function createAuthService(repo: AuthRepository, now: () => Date = () => 
     async login(input: LoginInput, client: ClientInfo): Promise<IssuedSession> {
       const user = await repo.findUserByEmail(input.email);
       if (!user) {
-        await verifyPassword(await getDummyHash(), input.password);
+        await verifyPassword(await dummyHash, input.password);
         throw invalidCredentials();
       }
       if (!(await verifyPassword(user.passwordHash, input.password))) throw invalidCredentials();

@@ -18,11 +18,14 @@
 - `apps/web`: Next 16 + Tailwind 4 + primitivas shadcn; tema claro/escuro; barra inferior (mobile) e lateral (desktop); páginas Hoje, Treino, Nutrição, Progresso, Coach, Perfil com estados vazios; `/cadastro`, `/entrar`, logout; guarda de rota via `/auth/me`.
 - Testes: unit (core, schemas), integração da API com Testcontainers (health, auth, rate limit, isolamento entre usuários), E2E Playwright (cadastro → logout → login; senha errada; validação).
 - CI GitHub Actions: typecheck, lint, format, testes, build, E2E.
+- Revisão (checklist 16.3): nenhum problema de severidade alta; médios e baixos corrigidos (ADR-014) e testes adicionados (CSRF no logout, 500 genérico, limite de cadastro, X-Forwarded-For forjado).
 
 ## Pendente (para fases seguintes)
 - Botão flutuante de registro rápido (12.1): entra junto com os registros que ele aciona (Fases 1 a 5).
 - Exportação/exclusão de conta (LGPD): Fase 8.
 - PWA instalável: Fase 8.
+- Deploy: definir `TRUST_PROXY` e `WEB_ORIGIN` (ADR-014); rate limit com store compartilhado se houver mais de uma instância.
+- `/entrar` e `/cadastro` não redirecionam quem já está logado (UX, baixa prioridade; apontado na revisão da Fase 0).
 
 ## Bugs conhecidos
 - Nenhum.

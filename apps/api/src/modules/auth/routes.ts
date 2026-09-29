@@ -107,10 +107,11 @@ export function authRoutes(app: FastifyInstance, opts: AuthRoutesOptions) {
     '/auth/login',
     {
       config: { rateLimit: limit },
-      preHandler: async (request) => {
+      preHandler: async (request, reply) => {
         const result = await emailLimiter(request);
         // `isAllowed` só é true para allowList; o limite é indicado por `isExceeded`.
         if (!result.isAllowed && result.isExceeded) {
+          void reply.header('retry-after', String(result.ttlInSeconds));
           throw new AppError(
             429,
             'RATE_LIMITED',

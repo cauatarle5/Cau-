@@ -16,7 +16,10 @@ export interface TestContext {
   close: () => Promise<void>;
 }
 
-export async function createTestApp(overrides: Partial<AppConfig> = {}): Promise<TestContext> {
+export async function createTestApp(
+  overrides: Partial<AppConfig> = {},
+  beforeReady?: (app: FastifyInstance) => void,
+): Promise<TestContext> {
   const databaseUrl = inject('databaseUrl');
   const handle = createDb(databaseUrl);
   const app = await buildApp({
@@ -29,10 +32,12 @@ export async function createTestApp(overrides: Partial<AppConfig> = {}): Promise
       webOrigin: WEB_ORIGIN,
       cookieSecure: false,
       authRateLimitMax: 1000,
+      trustProxy: 'loopback',
       ...overrides,
     },
     db: handle.db,
   });
+  beforeReady?.(app);
   await app.ready();
   return {
     app,
