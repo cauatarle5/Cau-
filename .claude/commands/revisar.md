@@ -1,6 +1,7 @@
 ---
 description: Revisa o diff da branch atual contra main com o checklist do projeto
 ---
+
 Revise `git diff main...HEAD` com um subagente revisor independente, aplicando o checklist (PROMPT_MESTRE 16.3):
 
 - isolamento por `user_id` em toda query;

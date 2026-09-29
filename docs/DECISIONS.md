@@ -33,3 +33,46 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
 - **Contexto:** a convenção é branch por fase (`phase/NN-nome`), mas a sessão remota do Claude Code recebe uma branch designada e não pode criar outras sem permissão.
 - **Decisão:** quando a sessão tiver branch designada, a fase é desenvolvida nela; o nome da fase fica no título do PR. Fora disso, vale `phase/NN-nome`.
 - **Consequências:** o merge na main continua exigindo tudo verde.
+
+## ADR-006: Pacotes internos consumidos como fonte TypeScript
+- **Status:** aceita
+- **Contexto:** lacuna; é preciso compartilhar `core`, `schemas` e `db` entre web e api.
+- **Decisão:** pacotes `@atlas/*` exportam `src/*.ts` diretamente (sem build próprio). `tsconfig` com `moduleResolution: "Bundler"`. Next usa `transpilePackages`; a API roda com `tsx` em dev e é empacotada com `tsup` (pacotes do workspace embutidos) no build.
+- **Consequências:** zero etapa de build intermediária; typecheck por pacote com `tsc --noEmit`.
+
+## ADR-007: Web chama a API pelo mesmo origin
+- **Status:** aceita
+- **Contexto:** lacuna; cookie `httpOnly` + `SameSite=Lax` precisa chegar à API.
+- **Decisão:** o Next faz `rewrites` de `/api/v1/*` para `API_URL`. O navegador só fala com o origin do front. A API mantém CORS restrito a `WEB_ORIGIN` e verifica o header `Origin` em métodos de escrita (ausente é aceito; divergente → 403 `ORIGIN_FORBIDDEN`).
+- **Consequências:** sem CORS no fluxo normal; deploy precisará manter o proxy (revisar na Fase 8).
+
+## ADR-008: UUID v7 gerado na aplicação
+- **Status:** aceita
+- **Contexto:** PG16 não gera UUID v7 nativamente.
+- **Decisão:** pacote `uuidv7` via `$defaultFn` do Drizzle.
+
+## ADR-009: Detalhes de autenticação
+- **Status:** aceita
+- **Contexto:** PROMPT_MESTRE 3.4 define o modelo; faltam parâmetros concretos.
+- **Decisão:** argon2id via `@node-rs/argon2` (m=19456 KiB, t=2, p=1, OWASP). Senha 8–128 caracteres. Cookie `atlas_session`; flag `Secure` por `COOKIE_SECURE` (padrão `true` em produção, `false` em dev/test, pois o dev roda em http). Renovação deslizante: ao usar uma sessão com menos de 15 dias restantes, estende para 30 dias (evita escrita a cada request). Rate limit com `@fastify/rate-limit` em memória (instância única): login 5/min por IP e 5/min por e-mail; cadastro 5/min por IP. Login com e-mail inexistente também executa verificação de hash (tempo constante aproximado) e retorna o mesmo erro `INVALID_CREDENTIALS`.
+- **Consequências:** rate limit em memória precisa de store compartilhado se houver mais de uma instância (ADR futura).
+
+## ADR-010: Postgres dos testes de integração
+- **Status:** aceita
+- **Contexto:** Testcontainers exige Docker, que nem todo ambiente de desenvolvimento tem.
+- **Decisão:** testes usam Testcontainers (`postgres:16`) por padrão; se `TEST_DATABASE_URL` estiver definida, usam esse Postgres. A CI usa Testcontainers.
+
+## ADR-011: Versão do TypeScript
+- **Status:** aceita
+- **Contexto:** TypeScript 7 (nativo) já existe, mas `typescript-eslint` suporta até `<6.1`.
+- **Decisão:** fixar `typescript ~6.0`. Revisar quando o lint suportar 7.
+
+## ADR-012: Rotas do front
+- **Status:** aceita
+- **Contexto:** PROMPT_MESTRE 3.2 lista hoje, treino, nutricao, progresso, coach, perfil; auth não tem rota definida.
+- **Decisão:** `/entrar` e `/cadastro` para auth; `/` redireciona para `/hoje`. Rotas autenticadas protegidas no cliente via `GET /api/v1/auth/me`.
+
+## ADR-013: Cliente HTTP do front na Fase 0
+- **Status:** aceita
+- **Contexto:** P3.5 pede cliente derivado dos schemas Zod, sem tipos à mão.
+- **Decisão:** wrapper `fetch` tipado com `z.infer` dos schemas de `@atlas/schemas`, que também valida respostas. Geração a partir do OpenAPI só se o wrapper deixar de bastar.

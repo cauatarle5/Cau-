@@ -2,6 +2,7 @@
 description: Incorpora um delta de especificação vindo do chat
 argument-hint: <delta: objetivo, regras, dados afetados, telas, critérios de aceite>
 ---
+
 Delta recebido:
 
 $ARGUMENTS

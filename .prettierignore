@@ -1,0 +1,7 @@
+pnpm-lock.yaml
+PROMPT_MESTRE.md
+CLAUDE.md
+docs/
+packages/db/drizzle/
+.next/
+dist/
