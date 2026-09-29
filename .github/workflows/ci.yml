@@ -1,9 +1,9 @@
 name: CI
 
+# Todo push (inclui main, exigido pelo PROMPT_MESTRE 13) e execução manual.
 on:
   push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
