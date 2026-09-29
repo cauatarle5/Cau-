@@ -37,7 +37,7 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
 ## ADR-006: Pacotes internos consumidos como fonte TypeScript
 - **Status:** aceita
 - **Contexto:** lacuna; é preciso compartilhar `core`, `schemas` e `db` entre web e api.
-- **Decisão:** pacotes `@atlas/*` exportam `src/*.ts` diretamente (sem build próprio). `tsconfig` com `moduleResolution: "Bundler"`. Next usa `transpilePackages`; a API roda com `tsx` em dev e é empacotada com `tsup` (pacotes do workspace embutidos) no build.
+- **Decisão:** pacotes `@atlas/*` exportam `src/*.ts` diretamente (sem build próprio). `tsconfig` com `moduleResolution: "Bundler"`. Next usa `transpilePackages`; a API roda com `tsx` em dev e é empacotada com `tsup` (pacotes do workspace embutidos) no build; dependências de terceiros usadas por esses pacotes em runtime (ex.: `pg`, `drizzle-orm`) também são declaradas na API.
 - **Consequências:** zero etapa de build intermediária; typecheck por pacote com `tsc --noEmit`.
 
 ## ADR-007: Web chama a API pelo mesmo origin
@@ -54,7 +54,7 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
 ## ADR-009: Detalhes de autenticação
 - **Status:** aceita
 - **Contexto:** PROMPT_MESTRE 3.4 define o modelo; faltam parâmetros concretos.
-- **Decisão:** argon2id via `@node-rs/argon2` (m=19456 KiB, t=2, p=1, OWASP). Senha 8–128 caracteres. Cookie `atlas_session`; flag `Secure` por `COOKIE_SECURE` (padrão `true` em produção, `false` em dev/test, pois o dev roda em http). Renovação deslizante: ao usar uma sessão com menos de 15 dias restantes, estende para 30 dias (evita escrita a cada request). Rate limit com `@fastify/rate-limit` em memória (instância única): login 5/min por IP e 5/min por e-mail; cadastro 5/min por IP. Login com e-mail inexistente também executa verificação de hash (tempo constante aproximado) e retorna o mesmo erro `INVALID_CREDENTIALS`.
+- **Decisão:** argon2id via `@node-rs/argon2` (m=19456 KiB, t=2, p=1, OWASP). Senha 8–128 caracteres. Cookie `atlas_session`; flag `Secure` por `COOKIE_SECURE` (padrão `true` em produção, `false` em dev/test, pois o dev roda em http). Renovação deslizante: ao usar uma sessão com menos de 15 dias restantes, estende para 30 dias (evita escrita a cada request). Rate limit com `@fastify/rate-limit` em memória (instância única): login 5/min por IP e 5/min por e-mail; cadastro 5/min por IP (limite configurável por `AUTH_RATE_LIMIT_MAX`, padrão 5; testes usam valor alto). `trustProxy` restrito a loopback (rewrite do Next). Login com e-mail inexistente também executa verificação de hash (tempo constante aproximado) e retorna o mesmo erro `INVALID_CREDENTIALS`.
 - **Consequências:** rate limit em memória precisa de store compartilhado se houver mais de uma instância (ADR futura).
 
 ## ADR-010: Postgres dos testes de integração
