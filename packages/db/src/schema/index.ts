@@ -3,3 +3,5 @@ export * from './users';
 export * from './sessions';
 export * from './profile';
 export * from './body';
+export * from './foods';
+export * from './meals';

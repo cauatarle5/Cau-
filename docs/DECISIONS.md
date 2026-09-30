@@ -160,3 +160,13 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
 - **Status:** aceita
 - **Contexto:** P6.2 (matching) e P5.8 (rebalanceamento) deixam parâmetros em aberto.
 - **Decisão:** uso do usuário normalizado como `min(1, vezes_usado / 10)`. Regra de estado padrão aplicada como penalidade × 0,8 na similaridade de itens crus de cereais, leguminosas, carnes, aves, peixes, tubérculos e ovos quando o texto não diz "cru"; aliases cobrem os padrões específicos ("frango" → peito grelhado). O parser por regras separa itens só por vírgula, ";", "+", quebra de linha e " e " (P6.2), não por "com". Rebalanceamento semanal: a diferença para a média é repartida igualmente entre os 7 dias; cada dia respeita o piso max(TMB, 1500/1200), que prevalece sobre a média.
+
+## ADR-029: Arredondamento dos valores da TACO
+- **Status:** aceita
+- **Contexto:** a conversão pública traz médias sem arredondar (ex.: 128,258 kcal); a TACO impressa publica 128 kcal. O DoD da Fase 2 confere valores contra a TACO.
+- **Decisão:** o snapshot usa o arredondamento da tabela impressa: kcal e minerais em mg inteiros; macronutrientes, fibra, gordura saturada e ferro com 1 casa decimal.
+
+## ADR-030: Campos extras no snapshot de refeições e metas
+- **Status:** aceita
+- **Contexto:** histórico imutável (P1.6) e sobrescrita do tipo de dia (P5.8).
+- **Decisão:** `meal_items.food_name` guarda o nome do alimento no momento do registro (junto de `nutrients_snapshot`), para o histórico não depender do catálogo. `nutrition_targets.day_type_overridden` marca o tipo de dia escolhido pelo usuário, que recálculos preservam. `food_aliases.user_id` (nulo = sistema) permite aliases pessoais (P6.2 passo 8).

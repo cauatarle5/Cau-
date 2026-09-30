@@ -1,5 +1,6 @@
 import type { Database } from './client';
 import { equipment } from './schema';
+import { seedFoods } from './seed-foods';
 
 /** Equipamentos do catálogo (DATA_MODEL 4.3). */
 export const EQUIPMENT_SEED: readonly { code: string; namePt: string }[] = [
@@ -29,4 +30,5 @@ export async function seedCatalogs(db: Database): Promise<void> {
       .values(item)
       .onConflictDoUpdate({ target: equipment.code, set: { namePt: item.namePt } });
   }
+  await seedFoods(db);
 }
