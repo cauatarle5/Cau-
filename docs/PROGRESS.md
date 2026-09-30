@@ -1,7 +1,7 @@
 # PROGRESS: Atlas
 
 ## Fase atual
-**Fase 2. Nutrição núcleo: concluída.** Próximo: **Fase 3. Treino núcleo.**
+**Fase 3. Treino núcleo: concluída.** Próximo: **Fase 4. Receitas e planejamento alimentar.**
 
 ## Feito
 ### Fase 0. Fundação
@@ -29,12 +29,23 @@
 - **Revisão (checklist 16.3):** sem problemas altos; médios e baixos corrigidos com testes (ADR-032).
 - **DoD:** "200g de arroz, 150g de frango e 100g de feijão" registrado em menos de 10 s, valores conferidos contra a TACO.
 
+### Fase 3. Treino núcleo
+- **Dados:** 19 músculos e 157 exercícios de sistema com padrão de movimento, mecânica, equipamentos, tags de contraindicação e músculos primários (1,0) / secundários (0,5); seed idempotente (ADR-033).
+- **Core:** e1RM de Epley com reps efetivas (reps + RIR ≤ 12), RIR ↔ RPE, série dura, tonelagem, resumo por sessão, volume semanal por músculo e frequência, faixas MEV/produtiva/MRV, recordes (e1RM, maior carga, reps na carga, tonelagem) com linha do tempo recalculável, fantasmas, ranking de alternativas, semana seg–dom. 164 testes no core.
+- **API:** exercícios (busca por nome/alias e filtros, personalizados, alternativas por equipamento/limitações/preferências, progresso), preferências (ADR-019 cumprida), programas (criar, editar, ativar; um ativo), sessões (iniciar do template com fantasmas, finalizar, histórico, apagar), exercícios da sessão (adicionar, pular, substituir), séries com recordes, volume semanal por músculo; ids do cliente idempotentes e `Idempotency-Key` (ADR-034/036/037). 77 testes de integração.
+- **Web:** Treino (programa ativo, construtor de programa, iniciar, treino livre, histórico); treino ativo com fantasmas, confirmação em 1 toque, steppers, RIR opcional, descanso com vibração, pular com motivo, substituir, adicionar série/exercício, finalizar com RPE e resumo; fila offline em IndexedDB por usuário com indicador de sincronização; Progresso com e1RM por exercício e volume da semana. Testes unitários da fila (Vitest).
+- **E2E:** treino completo sem rede → sincroniza ao voltar → histórico (1.200 kg) e e1RM (80 kg) visíveis; treino livre com substituição.
+- **Revisão (checklist 16.3):** 1 problema alto (fila perdia operações enfileiradas durante um envio) e 6 médios corrigidos com testes (ADR-037); baixos corrigidos ou registrados em `OPEN_QUESTIONS.md`.
+- **DoD:** treino completo registrado no celular sem rede e sincronizado depois (`source = offline_sync`); progresso por exercício visível.
+
 ## Pendente (para fases seguintes)
 - GET adaptativo semanal: Fase 6.
 - Receitas, refeições planejadas, `POST meals/:id/log`, modelos de refeição: Fase 4.
 - Leite fluido e itens ausentes na TACO; fallback USDA bloqueado pela rede deste ambiente (OPEN_QUESTIONS).
 - Avaliação do parser com 100 frases e da IA real: Fase 7 (sem `ANTHROPIC_API_KEY` neste ambiente, só as regras foram avaliadas).
-- Preferências de exercício: Fase 3 (ADR-019).
+- Mesociclos, agenda (`planned_workouts`), progressão dupla nas metas, registro de dor e adaptação por prontidão: Fase 5 (ADR-035).
+- Limpeza de `idempotency_keys` (job) e reversão local de operação offline recusada (OPEN_QUESTIONS).
+- Treino offline com recarga de página: PWA, Fase 8.
 - Botão flutuante de registro rápido (12.1): entra com os registros que ele aciona.
 - Exportação/exclusão de conta (LGPD) e PWA: Fase 8.
 - Deploy: definir `TRUST_PROXY` e `WEB_ORIGIN` (ADR-014).
@@ -45,8 +56,9 @@
 
 ## Notas de ambiente
 - Sem Docker: defina `TEST_DATABASE_URL` para os testes de integração (ADR-010).
-- Chromium pré-instalado: `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/caminho/chrome pnpm test:e2e`. Com servidores de dev já rodando, o Playwright os reaproveita; o limite de cadastro/login (`AUTH_RATE_LIMIT_MAX=5`) pode derrubar a suíte, então pare-os antes ou suba a API com um limite maior.
+- Chromium pré-instalado: `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/caminho/chrome pnpm test:e2e` (neste ambiente: `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`).
+- Após reiniciar o contêiner, o Docker pode estar parado: `dockerd &` e depois `pnpm db:up`. Com servidores de dev já rodando, o Playwright os reaproveita; o limite de cadastro/login (`AUTH_RATE_LIMIT_MAX=5`) pode derrubar a suíte, então pare-os antes ou suba a API com um limite maior.
 - `apps/web/AGENTS.md` e `apps/web/CLAUDE.md` são gerados pelo `next dev`.
 
 ## Próximo passo
-- `/fase 3`: seed de ~150 exercícios com mapeamento muscular, programas e templates manuais, treino ativo com fantasmas/descanso/pular/substituir, offline com sincronização (`Idempotency-Key`, ADR-027), histórico e métricas (e1RM, tonelagem, volume por músculo, recordes), preferências de exercício (ADR-019).
+- `/fase 4`: receitas e planejamento alimentar (receitas, refeições planejadas, modelos de refeição, `POST meals/:id/log`), conforme `docs/ROADMAP.md`.

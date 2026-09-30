@@ -215,3 +215,14 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
   - **Programa ativo:** ativar outro programa arquiva o anterior.
   - **Contraindicações:** as tags de `limitations.contraindicated_patterns` são comparadas com as tags de contraindicação do exercício e com o seu padrão de movimento.
   - **Id repetido de outro usuário:** 409 `BAD_REQUEST`, sem revelar o registro.
+
+## ADR-037: Correções da revisão da Fase 3
+- **Status:** aceita (complementa ADR-034/036)
+- **Contexto:** a revisão 16.3 encontrou perda de operações na fila offline e recordes que não se corrigiam.
+- **Decisão:**
+  - **Fila:** toda alteração é ler → alterar → gravar no IndexedDB sob Web Locks (`atlas-queue`); o envio remove a operação pelo id; um só envio por vez entre abas (`atlas-flush`, `ifAvailable`). DELETE com 404 e respostas 409 contam como já aplicadas; demais 4xx são descartados com aviso (`lastError`, limpo no próximo envio aceito).
+  - **Dados offline por usuário:** as chaves do IndexedDB levam o id do usuário (`setOfflineUser` ao carregar a sessão autenticada); trocar de conta no aparelho não mostra nem envia dados de outra pessoa.
+  - **Recordes recalculáveis:** a cada série criada, editada ou apagada, ao finalizar e ao apagar uma sessão, os recordes do exercício são recalculados do histórico inteiro (`recordTimeline` no core), numa transação com trava consultiva por (usuário, exercício). Uma série só bate recorde se alguma sessão anterior teve série working concluída; na mesma sessão, a ordem é índice da série, horário e id.
+  - **Ativação de programa:** trava consultiva por usuário na transação, evitando violar o índice de programa ativo único.
+  - **Substituição:** voltar ao exercício original desfaz a substituição; retomar um exercício substituído mantém `substituted`.
+  - **Treino em andamento:** só a sessão iniciada no aparelho vira o ponteiro de "em andamento"; abrir outra pelo histórico não o troca.

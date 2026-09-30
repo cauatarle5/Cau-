@@ -42,12 +42,14 @@ Condensado de `PROMPT_MESTRE.md` Parte 4. Tabelas são criadas na fase em que s�
 | workout_templates | id, program_id, name, day_order, focus_muscles text[], estimated_minutes |
 | template_exercises | id, workout_template_id, order, exercise_id, sets, rep_min, rep_max, target_rir, rest_seconds, superset_group, notes |
 | planned_workouts | id, user_id, date, workout_template_id, mesocycle_id, week_index, status (`planned\|done\|skipped\|moved\|adapted`), adaptation_reason, adapted_payload jsonb |
-| workout_sessions | id, user_id, date, planned_workout_id?, started_at, ended_at, duration_min, session_rpe (1–10), perceived_difficulty (1–5), notes, source (`app\|offline_sync\|import`) |
-| session_exercises | id, session_id, order, exercise_id, planned_exercise_id?, substituted_from_exercise_id, status (`done\|skipped\|substituted`), skip_reason, notes |
+| workout_sessions | id, user_id, date, planned_workout_id?, workout_template_id? (ADR-035), name (snapshot), started_at, ended_at, duration_min, session_rpe (1–10), perceived_difficulty (1–5), notes, source (`app\|offline_sync\|import`) |
+| session_exercises | id, session_id, order, exercise_id, exercise_name (snapshot), template_exercise_id?, substituted_from_exercise_id, status (`pending\|done\|skipped\|substituted`, ADR-036), skip_reason, target_sets, rep_min, rep_max, target_rir, rest_seconds (snapshot das metas), notes |
 | set_logs | id, session_exercise_id, set_index, set_type (`warmup\|working\|drop\|failure\|backoff`), reps, load_kg, rir, rpe, rest_seconds, duration_seconds, completed, logged_at. RIR = 10 − RPE |
 | pain_reports | id, user_id, date, session_id?, body_region, intensity (0–10), during_exercise_id?, type (`joint\|muscle\|other`), notes |
 | activities | id, user_id, date, started_at, sport_code, duration_min, intensity_rpe (1–10), distance_km, avg_hr, kcal_reported, lower_body_demand (1–3), notes, source (`manual\|wearable`) |
-| personal_records | id, user_id, exercise_id, record_type (`e1rm\|max_load\|rep_at_load\|volume_session`), value, reps, load_kg, set_log_id, achieved_at. Recalculável |
+| personal_records | id, user_id, exercise_id, record_type (`e1rm\|max_load\|rep_at_load\|volume_session`), value, reps, load_kg, set_log_id, session_id, achieved_at. Recalculado a cada alteração (ADR-037) |
+
+| idempotency_keys (ADR-034) | user_id, key (PK composta), method, path, status_code, response jsonb, created_at |
 
 ## 4.4 Recuperação
 | Tabela | Colunas |
@@ -110,3 +112,4 @@ Receita como alimento: `foods.source_code = 'recipe'`, `source_ref = recipe_id`.
 - Fase 0: `users`, `sessions`; extensões `pg_trgm`, `unaccent`, `citext`.
 - Fase 1: `profiles` (+ `clinical_condition`), `availability`, `equipment` (seed), `equipment_access`, `limitations`, `goals`, `sports`, `body_measurements`. Enums como tipos Postgres. `exercise_preferences` fica para a Fase 3 (ADR-019).
 - Fase 2: `food_sources`, `foods` (591 itens TACO), `food_nutrients`, `food_aliases`, `household_measures`, `user_food_usage`, `meals`, `meal_items`, `water_logs`, `nutrition_targets`, `parser_feedback`.
+- Fase 3: `muscles` (19, seed), `exercises` (157 de sistema, seed idempotente por nome; trigram no nome), `exercise_muscles`, `exercise_preferences`, `programs` (índice parcial: um `active` por usuário), `workout_templates`, `template_exercises`, `workout_sessions`, `session_exercises`, `set_logs`, `personal_records`, `idempotency_keys`. Progressão por exercício via join `set_logs` → `session_exercises (exercise_id, session_id)` → `workout_sessions (user_id, date)`.
