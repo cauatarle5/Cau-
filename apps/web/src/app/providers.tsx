@@ -1,9 +1,10 @@
 'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { ApiError } from '@/lib/api';
+import { startSync } from '@/offline/queue';
 
 export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(
@@ -19,5 +20,8 @@ export function Providers({ children }: { children: ReactNode }) {
         },
       }),
   );
+  useEffect(() => {
+    startSync();
+  }, []);
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }

@@ -1,5 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { uuidv7 } from 'uuidv7';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { weekStart } from '@atlas/core';
 
