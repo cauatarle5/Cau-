@@ -99,23 +99,25 @@ export function createFoodsService(repo: FoodsRepository) {
       userId,
       candidates.map((c) => c.foodId),
     );
-    return candidates
-      .flatMap((c) => {
-        const bundle = bundles.get(c.foodId);
-        if (!bundle) return [];
-        const score = matchScore(q, {
-          similarity: c.similarity,
-          timesUsed: c.timesUsed,
-          verified: bundle.food.isVerified,
-          category: bundle.food.category,
-          state: bundle.food.state,
-          exactAlias: c.exactAlias,
-        });
-        return [{ bundle, score, timesUsed: c.timesUsed }];
-      })
-      // Empate (ex.: alias curado × alias pessoal, ambos 1,0): vence o que o usuário usa.
-      .sort((a, b) => b.score - a.score || b.timesUsed - a.timesUsed)
-      .slice(0, limit);
+    return (
+      candidates
+        .flatMap((c) => {
+          const bundle = bundles.get(c.foodId);
+          if (!bundle) return [];
+          const score = matchScore(q, {
+            similarity: c.similarity,
+            timesUsed: c.timesUsed,
+            verified: bundle.food.isVerified,
+            category: bundle.food.category,
+            state: bundle.food.state,
+            exactAlias: c.exactAlias,
+          });
+          return [{ bundle, score, timesUsed: c.timesUsed }];
+        })
+        // Empate (ex.: alias curado × alias pessoal, ambos 1,0): vence o que o usuário usa.
+        .sort((a, b) => b.score - a.score || b.timesUsed - a.timesUsed)
+        .slice(0, limit)
+    );
   }
 
   return {
