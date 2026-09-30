@@ -1,5 +1,6 @@
 import type { Database } from './client';
 import { equipment } from './schema';
+import { seedExercises } from './seed-exercises';
 import { seedFoods } from './seed-foods';
 
 /** Equipamentos do catálogo (DATA_MODEL 4.3). */
@@ -31,4 +32,5 @@ export async function seedCatalogs(db: Database): Promise<void> {
       .onConflictDoUpdate({ target: equipment.code, set: { namePt: item.namePt } });
   }
   await seedFoods(db);
+  await seedExercises(db);
 }

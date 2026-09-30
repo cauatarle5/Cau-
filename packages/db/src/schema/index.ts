@@ -5,3 +5,4 @@ export * from './profile';
 export * from './body';
 export * from './foods';
 export * from './meals';
+export * from './training';
