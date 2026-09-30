@@ -6,7 +6,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm db:up && pnpm db:migrate && turbo run dev",
+    "dev": "pnpm db:up && pnpm db:migrate && pnpm db:seed && turbo run dev",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "lint": "eslint . --max-warnings 0",

@@ -1,6 +1,7 @@
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import type { TestProject } from 'vitest/node';
 
+import { createDb, seedCatalogs } from '@atlas/db';
 import { runMigrations } from '@atlas/db/migrate';
 
 declare module 'vitest' {
@@ -19,6 +20,9 @@ export async function setup(project: TestProject) {
     url = container.getConnectionUri();
   }
   await runMigrations(url);
+  const seedDb = createDb(url);
+  await seedCatalogs(seedDb.db);
+  await seedDb.close();
   project.provide('databaseUrl', url);
 }
 
