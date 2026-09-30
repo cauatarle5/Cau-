@@ -82,3 +82,40 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
 - **Contexto:** revisão da Fase 0: com `trustProxy` fixo em loopback, web e api em hosts diferentes fariam todos os usuários compartilharem o mesmo IP no rate limit; `WEB_ORIGIN` com barra final bloquearia toda escrita.
 - **Decisão:** `TRUST_PROXY` por env (`loopback` padrão ou lista de IPs/CIDRs separada por vírgula), repassado ao Fastify. `WEB_ORIGIN` normalizado para `URL.origin`. Erros 4xx do framework (JSON malformado, content-type, corpo grande) usam o código `BAD_REQUEST`, separado de `VALIDATION_ERROR`. O limite por e-mail no login devolve `Retry-After`.
 - **Consequências:** o deploy (Fase 8) precisa definir `TRUST_PROXY` e `WEB_ORIGIN` corretos. O limitador por e-mail em memória (LRU de 5000 chaves) pode perder contadores sob carga de muitos e-mails distintos; um store compartilhado entra junto com a ADR de múltiplas instâncias.
+
+## ADR-015: Metas da Fase 1 calculadas sob demanda
+- **Status:** aceita
+- **Contexto:** a Fase 1 exige metas visíveis; persistência diária e distribuição por tipo de dia (P5.8) são da Fase 2.
+- **Decisão:** `GET /nutrition/targets?from&to` calcula por fórmula (`method: formula`), sem persistir. Cada dia recebe a base semanal (média do GET dos 7 dias planejados, P5.2) com `dayType: null`. `POST /goals` devolve as metas resultantes como impacto.
+- **Consequências:** a Fase 2 passa a persistir em `nutrition_targets` mantendo o mesmo contrato.
+
+## ADR-016: Exercício planejado antes de existirem sessões
+- **Status:** aceita
+- **Contexto:** o GET semanal (P5.2) precisa do exercício planejado; na Fase 1 só existem disponibilidade e esportes do onboarding.
+- **Decisão:** cada linha de `availability` com `kind = gym` é uma sessão de musculação moderada (MET 3,5) de `max_minutes`. Esportes: `weekly_frequency × typical_duration_min`, MET: futebol/futsal 7,0 (`typical_intensity ≤ 3`) ou 10,0 (`≥ 4`); corrida 8,0; ciclismo 6,8; natação 5,8; outro 3,5 (caminhada). A água usa as horas médias diárias desse plano.
+- **Consequências:** substituído pelo plano real (planned_workouts, activities) nas Fases 3 e 5.
+
+## ADR-017: Trava clínica
+- **Status:** aceita
+- **Contexto:** P5.7 proíbe gerar planos em gestação, doenças, transtornos alimentares ou uso de medicamentos, mas o modelo de dados não tem onde registrar isso.
+- **Decisão:** coluna aditiva `profiles.clinical_condition boolean not null default false`, perguntada no onboarding. Se `true`, o endpoint de metas não gera números e retorna `blocked: 'CLINICAL_CONDITION'`; a interface recomenda acompanhamento profissional.
+
+## ADR-018: Tendência de peso e aviso de plausibilidade
+- **Status:** aceita
+- **Contexto:** P5.5 define a EMA; faltam regras para várias pesagens no dia e para o aviso de P3.6.
+- **Decisão:** várias pesagens no mesmo dia → média do dia. EMA calculada desde a primeira pesagem e recortada ao período pedido. Variação maior que 2% da tendência por dia desde a última pesagem gera `warnings: ['WEIGHT_CHANGE_UNUSUAL']` e confirmação na interface; nunca bloqueia.
+
+## ADR-019: Preferências de exercício adiadas
+- **Status:** aceita
+- **Contexto:** `GET|PUT exercise-preferences` (P11) depende do catálogo de exercícios.
+- **Decisão:** implementado na Fase 3.
+
+## ADR-020: Onboarding completo
+- **Status:** aceita
+- **Contexto:** o app precisa saber quando levar o usuário ao onboarding.
+- **Decisão:** completo = `profiles` existente + ao menos um `goals` + ao menos uma pesagem. `GET /profile` devolve `onboardingComplete`; o layout autenticado redireciona para `/onboarding` enquanto for `false`.
+
+## ADR-021: Valores escolhidos dentro das faixas da especificação
+- **Status:** aceita
+- **Contexto:** P5.4 e P5.6 dão faixas; o cálculo precisa de um número.
+- **Decisão:** fat_loss −20% (valor padrão indicado); recomposition −5%; performance 0% (o carboidrato alto sai da regra de macros); proteína 2,2 g/kg em fat_loss/recomposition. `target_rate_pct_per_week` tem sinal (negativo = perder). Arredondamento: kcal e gramas inteiros (macros calculados a partir da kcal e da proteína já arredondadas); água em múltiplos de 50 ml.
