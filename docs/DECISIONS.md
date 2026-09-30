@@ -226,3 +226,20 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
   - **Ativação de programa:** trava consultiva por usuário na transação, evitando violar o índice de programa ativo único.
   - **Substituição:** voltar ao exercício original desfaz a substituição; retomar um exercício substituído mantém `substituted`.
   - **Treino em andamento:** só a sessão iniciada no aparelho vira o ponteiro de "em andamento"; abrir outra pelo histórico não o troca.
+
+## ADR-038: Receita como alimento
+- **Status:** aceita
+- **Contexto:** P4.6 permite registrar receita como alimento; P7.1 pede porção e 100 g preparado.
+- **Decisão:** cada receita mantém um `foods` do usuário (`source_code = 'recipe'`, `source_ref = recipe_id`). Nutrientes por 100 g = total × 100 / peso cozido (se informado) ou / soma dos pesos dos ingredientes; medida `portion` = peso da receita / porções. A mesma busca, o parser e o snapshot das refeições servem para receitas. Editar a receita recalcula esse alimento e o `recipe_nutrition_cache`; refeições já registradas não mudam (snapshot). Excluir a receita é lógico e tira o alimento da busca.
+
+## ADR-039: Solver de sugestão de refeição
+- **Status:** aceita
+- **Contexto:** P7.2 sugere `javascript-lp-solver` ou equivalente.
+- **Decisão:** `javascript-lp-solver` (Unlicense, JS puro, sem rede) em `packages/core`. Para cada combinação de 1 a 3 itens do pool (máx. 12: receitas favoritas, modelos e alimentos dos últimos 30 dias por frequência), um LP maximiza kcal com kcal ≤ disponível, proteína ≥ mínima (dura), carboidrato e gordura ≤ limites e limites por item; depois arredonda para baixo em múltiplos práticos (10 g ou 0,5 porção), confere as restrições e ordena por kcal restante, depois por menos itens. O objetivo usa um atributo próprio (`obj`) porque a biblioteca não respeita uma restrição com o mesmo nome do objetivo. Não sugere alimento que o usuário nunca comeu.
+
+## ADR-040: Modelos de refeição e de dia; regra de substituição
+- **Status:** aceita
+- **Contexto:** P7.3 pede copiar dia, salvar dia como modelo e motor de substituição; o exemplo da P7.3 (muçarela → cottage na mesma gramagem) contradiz "kcal ±15%".
+- **Decisão:**
+  - `meal_templates.items` (jsonb) guarda por item `slot`, alimento, quantidade, unidade e gramas; modelo de refeição tem `slot_hint`, modelo de dia não. `POST meals/copy` (origem = data ou modelo) cria refeições `planned` no destino, recalculando o snapshot com os alimentos atuais.
+  - Substituição: candidatos da mesma categoria (histórico do usuário primeiro); mantém a gramagem ou aumenta até proteína ≥ 90% da original (múltiplos de 5 g); kcal não pode passar de +15% da original (reduzir é permitido, pois o objetivo é baixar o excedente); precisa reduzir o nutriente excedente; ordena pela redução.

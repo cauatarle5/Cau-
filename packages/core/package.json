@@ -9,5 +9,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "javascript-lp-solver": "^1.0.3"
   }
 }
