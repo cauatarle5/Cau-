@@ -61,7 +61,7 @@ Condensado de `PROMPT_MESTRE.md` Parte 4. Tabelas são criadas na fase em que s�
 | food_sources | code (`taco\|tbca\|usda\|off\|user\|recipe`), name, license_note |
 | foods | id, user_id, source_code, source_ref, name_pt, name_normalized (trigram), brand, category (`cereals\|legumes\|meats\|poultry\|fish\|eggs\|dairy\|fruits\|vegetables\|tubers\|fats_oils\|sweets\|beverages\|supplements\|prepared\|other`), state (`raw\|cooked\|grilled\|fried\|boiled\|roasted\|ready`), default_unit (`g\|ml`), density_g_per_ml, is_verified, barcode, created_at |
 | food_nutrients (por 100 g/ml) | food_id PK, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, saturated_fat_g, sodium_mg, potassium_mg?, calcium_mg?, iron_mg?, cholesterol_mg? |
-| food_aliases | id, food_id, alias_normalized |
+| food_aliases | id, food_id, user_id (nulo = sistema; ADR-030), alias_normalized |
 | household_measures | id, food_id?, user_id?, unit_code (`unit\|slice\|tbsp\|tsp\|cup\|scoop\|ladle\|portion\|pinch\|glass\|can\|small\|medium\|large`), label_pt, grams, is_default |
 | user_food_usage | user_id, food_id, times_used, last_used_at, last_quantity_g, last_unit_code |
 
@@ -77,10 +77,10 @@ Receita como alimento: `foods.source_code = 'recipe'`, `source_ref = recipe_id`.
 ## 4.7 Nutrição
 | Tabela | Colunas |
 |---|---|
-| nutrition_targets | id, user_id, date, day_type (`rest\|training\|hard_training\|sport\|sport_and_training`), kcal, protein_g, carbs_g, fat_g, fiber_g, water_ml, method (`formula\|adaptive`), inputs jsonb, goal_id, created_at. Único (user_id, date) |
+| nutrition_targets | id, user_id, date, day_type (`rest\|training\|hard_training\|sport\|sport_and_training`), kcal, protein_g, carbs_g, fat_g, fiber_g, water_ml, method (`formula\|adaptive`), inputs jsonb, goal_id, day_type_overridden (ADR-030), created_at. Único (user_id, date) |
 | energy_estimates | id, user_id, week_start, tdee_formula, tdee_observed, tdee_used, confidence (`low\|medium\|high`), weight_trend_kg, intake_avg_kcal, logged_days, weigh_in_count |
 | meals | id, user_id, date, slot (`breakfast\|morning_snack\|lunch\|afternoon_snack\|pre_workout\|post_workout\|dinner\|supper\|other`), status (`planned\|logged`), eaten_at, name, notes, source_text, created_at |
-| meal_items | id, meal_id, food_id \| recipe_id, quantity, unit_code, grams, nutrients_snapshot jsonb, parse_confidence, created_at |
+| meal_items | id, meal_id, food_id \| recipe_id, food_name (ADR-030), quantity, unit_code, grams, nutrients_snapshot jsonb, parse_confidence, created_at |
 | meal_templates | id, user_id, name, items jsonb, slot_hint |
 | water_logs | id, user_id, date, ml, logged_at |
 
@@ -108,4 +108,5 @@ Receita como alimento: `foods.source_code = 'recipe'`, `source_ref = recipe_id`.
 
 ## Estado atual
 - Fase 0: `users`, `sessions`; extensões `pg_trgm`, `unaccent`, `citext`.
-- Fase 1: `profiles` (+ `clinical_condition`), `availability`, `equipment` (seed), `equipment_access`, `limitations`, `goals`, `sports`, `body_measurements`. Enums como tipos Postgres. `exercise_preferences` fica para a Fase 3 (ADR-019); `nutrition_targets` para a Fase 2 (ADR-015).
+- Fase 1: `profiles` (+ `clinical_condition`), `availability`, `equipment` (seed), `equipment_access`, `limitations`, `goals`, `sports`, `body_measurements`. Enums como tipos Postgres. `exercise_preferences` fica para a Fase 3 (ADR-019).
+- Fase 2: `food_sources`, `foods` (591 itens TACO), `food_nutrients`, `food_aliases`, `household_measures`, `user_food_usage`, `meals`, `meal_items`, `water_logs`, `nutrition_targets`, `parser_feedback`.
