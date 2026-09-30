@@ -5,3 +5,4 @@ export * from './goals';
 export * from './macros';
 export * from './safety';
 export * from './targets';
+export * from './day-type';

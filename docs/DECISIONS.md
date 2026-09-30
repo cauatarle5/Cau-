@@ -130,3 +130,33 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
   - Medidas corporais com data no futuro são rejeitadas.
   - PATCH não aplica valores padrão a campos ausentes.
 - **Consequências:** proteína + gordura acima das kcal (só possível com `protein_g_per_kg` muito alto) segue em aberto em `OPEN_QUESTIONS.md`.
+
+## ADR-023: Fonte e tratamento dos dados da TACO
+- **Status:** aceita
+- **Contexto:** P6.4 pede a TACO como base. Os dados oficiais (NEPA/UNICAMP) estão em planilha; há uma conversão pública em JSON (marcelosanto/tabela_taco, 597 itens da 4ª edição).
+- **Decisão:** snapshot versionado em `packages/db/seeds/foods/taco.json`, só com os campos usados, conferido por amostragem contra a tabela oficial. "Tr" (traço) → 0; "NA", "*" e vazio → `null` (nunca zero implícito). Itens sem kcal ficam fora do seed. `category` e `state` derivados do grupo e da descrição TACO. `food_sources.license_note` credita NEPA/UNICAMP. TBCA, USDA e Open Food Facts ficam para depois (OPEN_QUESTIONS).
+
+## ADR-024: Aliases e medidas caseiras
+- **Status:** aceita
+- **Contexto:** P6.4 pede aliases e medidas dos alimentos mais comuns; P6.2 define regras de estado padrão.
+- **Decisão:** seed manual em `packages/db/seeds/foods/` apontando para itens TACO pelo nome original. Medidas genéricas (colher, concha, xícara...) e específicas (exemplos da P4.5). Itens comuns ausentes na TACO (ex.: whey) entram pelo cadastro rápido de alimento personalizado.
+
+## ADR-025: Parser de texto por IA
+- **Status:** aceita
+- **Contexto:** P6.2 e P10.6.
+- **Decisão:** `packages/ai` usa o SDK oficial da Anthropic com o modelo de `AI_MODEL_FAST` (sem valor padrão no código; `.env.example` traz o identificador atual). Sem chave ou modelo, erro, resposta inválida ou timeout de 4 s → parser por regras do core. A resposta é validada por Zod e contém só itens, quantidades, unidades e preparo.
+
+## ADR-026: Tipo de dia e metas persistidas na Fase 2
+- **Status:** aceita
+- **Contexto:** P5.8 deriva o tipo de dia de treinos e atividades, que só existem a partir das Fases 3 e 5.
+- **Decisão:** até lá, o tipo de dia vem do plano semanal: dia com disponibilidade de academia → `training`; dia com `sports.weekday_hint` → `sport`; ambos → `sport_and_training`; nada → `rest`. A distribuição P5.8 preserva a média semanal, calculada no core. `nutrition_targets` passa a ser persistido: hoje e dias futuros são recalculados quando pedidos; dias passados usam o snapshot existente e nunca são recalculados (sem snapshot, calcula e grava uma vez). `PUT nutrition/targets/:date/day-type` sobrescreve o tipo (`day_type_overridden`). Substitui a parte "sem persistir" da ADR-015.
+
+## ADR-027: Idempotência adiada
+- **Status:** aceita
+- **Contexto:** P3.5 pede `Idempotency-Key` em criações, essencial para a fila offline (Fase 3).
+- **Decisão:** implementada na Fase 3, junto com o primeiro fluxo offline.
+
+## ADR-028: Detalhes do matching e da distribuição semanal
+- **Status:** aceita
+- **Contexto:** P6.2 (matching) e P5.8 (rebalanceamento) deixam parâmetros em aberto.
+- **Decisão:** uso do usuário normalizado como `min(1, vezes_usado / 10)`. Regra de estado padrão aplicada como penalidade × 0,8 na similaridade de itens crus de cereais, leguminosas, carnes, aves, peixes, tubérculos e ovos quando o texto não diz "cru"; aliases cobrem os padrões específicos ("frango" → peito grelhado). O parser por regras separa itens só por vírgula, ";", "+", quebra de linha e " e " (P6.2), não por "com". Rebalanceamento semanal: a diferença para a média é repartida igualmente entre os 7 dias; cada dia respeita o piso max(TMB, 1500/1200), que prevalece sobre a média.
