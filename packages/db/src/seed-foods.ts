@@ -91,6 +91,11 @@ export async function seedFoods(db: Database): Promise<void> {
           'Tabela Brasileira de Composição de Alimentos, 4ª ed. revisada e ampliada, NEPA/UNICAMP, 2011. Reprodução permitida citando a fonte.',
       },
       { code: 'user', name: 'Cadastro do usuário', licenseNote: 'Informado pelo usuário.' },
+      {
+        code: 'recipe',
+        name: 'Receita do usuário',
+        licenseNote: 'Calculada dos ingredientes (ADR-038).',
+      },
     ])
     .onConflictDoNothing();
 

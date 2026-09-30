@@ -43,6 +43,13 @@
       "when": 1790788638245,
       "tag": "0005_training",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790799483122,
+      "tag": "0006_recipes_planning",
+      "breakpoints": true
     }
   ]
 }

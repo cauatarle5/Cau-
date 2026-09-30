@@ -45,6 +45,8 @@ export const foods = pgTable(
     densityGPerMl: doublePrecision('density_g_per_ml'),
     isVerified: boolean('is_verified').notNull().default(false),
     barcode: text('barcode'),
+    /** Falso quando a receita de origem é excluída (ADR-038): some da busca. */
+    isActive: boolean('is_active').notNull().default(true),
     createdAt: createdAt(),
   },
   (t) => [

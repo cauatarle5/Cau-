@@ -6,3 +6,4 @@ export * from './body';
 export * from './foods';
 export * from './meals';
 export * from './training';
+export * from './recipes';
