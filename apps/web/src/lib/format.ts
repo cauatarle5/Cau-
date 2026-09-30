@@ -12,3 +12,10 @@ export function formatDate(date: string): string {
 }
 
 export const WEEKDAYS_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] as const;
+
+/** Aceita vírgula ou ponto como decimal; `null` enquanto o texto não for um número completo. */
+export function parseDecimal(text: string): number | null {
+  const t = text.trim().replace(',', '.');
+  if (!/^\d+(\.\d+)?$/.test(t)) return null;
+  return Number(t);
+}

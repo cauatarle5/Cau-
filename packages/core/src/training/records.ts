@@ -57,3 +57,59 @@ export function detectSessionVolumeRecord(
     ? { type: 'volume_session', value: current, reps: null, loadKg: null }
     : null;
 }
+
+/** Série numa linha do tempo de recordes: `id` estável para associar os recordes. */
+export interface TimelineSet extends SetLike {
+  id: string;
+}
+
+export interface TimelineSession {
+  id: string;
+  /** Só sessões finalizadas entram no recorde de tonelagem. */
+  finished: boolean;
+  /** Séries já na ordem de execução. */
+  sets: readonly TimelineSet[];
+}
+
+export interface RecordTimeline {
+  bySet: Map<string, RecordHit[]>;
+  bySession: Map<string, RecordHit>;
+}
+
+const isReference = (s: SetLike) =>
+  s.completed && s.setType === 'working' && s.loadKg !== null && s.reps !== null;
+
+/**
+ * Recalcula todos os recordes de um exercício a partir do histórico em ordem (P8.1,
+ * "recalculável"). Uma série só pode bater recorde se alguma sessão anterior teve série
+ * working concluída (primeira exposição é referência); compara com as sessões anteriores e
+ * com as séries anteriores da mesma sessão. Tonelagem: só sessões finalizadas, contra as
+ * finalizadas anteriores com tonelagem > 0.
+ */
+export function recordTimeline(sessions: readonly TimelineSession[]): RecordTimeline {
+  const bySet = new Map<string, RecordHit[]>();
+  const bySession = new Map<string, RecordHit>();
+  const previous: SetLike[] = [];
+  const previousTonnage: SetLike[][] = [];
+  for (const session of sessions) {
+    const hasReference = previous.some(isReference);
+    const earlier: SetLike[] = [];
+    for (const set of session.sets) {
+      if (hasReference) {
+        const hits = detectSetRecords(set, [...previous, ...earlier]);
+        if (hits.length > 0) bySet.set(set.id, hits);
+      }
+      earlier.push(set);
+    }
+    if (session.finished) {
+      const hit = detectSessionVolumeRecord(
+        session.sets,
+        previousTonnage.filter((s) => tonnage(s) > 0),
+      );
+      if (hit) bySession.set(session.id, hit);
+      previousTonnage.push([...session.sets]);
+    }
+    previous.push(...session.sets);
+  }
+  return { bySet, bySession };
+}

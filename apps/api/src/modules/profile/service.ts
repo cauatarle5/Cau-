@@ -184,7 +184,6 @@ export function createProfileService({ repo, hasWeighIn }: ProfileServiceDeps) {
       return row ? toGoalDto(row) : null;
     },
 
-    /** Sessões de musculação planejadas (ADR-016). */
     /** Insumos do treino: equipamentos (nulo = sem restrição), contraindicações ativas e prioridades. */
     async trainingContext(userId: string) {
       const [access, lims, profile] = await Promise.all([
@@ -201,6 +200,7 @@ export function createProfileService({ repo, hasWeighIn }: ProfileServiceDeps) {
       };
     },
 
+    /** Sessões de musculação planejadas (ADR-016). */
     async gymSessionMinutes(userId: string) {
       return (await repo.listAvailability(userId))
         .filter((a) => a.kind === 'gym')

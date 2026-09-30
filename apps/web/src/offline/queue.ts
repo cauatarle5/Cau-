@@ -3,7 +3,7 @@
 import { uuidv7 } from 'uuidv7';
 import { create } from 'zustand';
 
-import { kvGet, kvSet } from './kv';
+import { kvGet, kvSet, onOfflineUserChange } from './kv';
 
 /** Escrita pendente; `id` vira a `Idempotency-Key` (ADR-034). */
 export interface QueuedOp {
@@ -12,15 +12,13 @@ export interface QueuedOp {
   path: string;
   body?: unknown;
   createdAt: string;
-  /** Enfileirada sem rede: a sessão é marcada `offline_sync` ao finalizar. */
-  offline: boolean;
 }
 
 interface SyncState {
   pending: number;
   syncing: boolean;
   online: boolean;
-  /** Última operação descartada por erro de validação (4xx). */
+  /** Última operação recusada pelo servidor (4xx); limpa no próximo envio aceito. */
   lastError: string | null;
 }
 
@@ -32,20 +30,35 @@ export const useSyncStore = create<SyncState>(() => ({
 }));
 
 const KEY = 'queue';
-let queue: QueuedOp[] | null = null;
-let flushing: Promise<void> | null = null;
 const listeners = new Set<(op: QueuedOp, response: unknown) => void>();
+let flushing: Promise<void> | null = null;
+let chain: Promise<unknown> = Promise.resolve();
 
-async function load(): Promise<QueuedOp[]> {
-  queue ??= (await kvGet<QueuedOp[]>(KEY)) ?? [];
-  useSyncStore.setState({ pending: queue.length });
-  return queue;
+const hasLocks = () => typeof navigator !== 'undefined' && 'locks' in navigator;
+
+/**
+ * Toda alteração da fila é ler → alterar → gravar sob trava (Web Locks entre abas; cadeia de
+ * promessas como alternativa), sempre a partir do que está gravado: nada enfileirado durante
+ * um envio é sobrescrito.
+ */
+function withQueueLock<T>(fn: () => Promise<T>): Promise<T> {
+  if (hasLocks()) return navigator.locks.request('atlas-queue', fn);
+  const run = chain.then(fn, fn);
+  chain = run.catch(() => undefined);
+  return run;
 }
 
-async function save(q: QueuedOp[]) {
-  queue = q;
-  useSyncStore.setState({ pending: q.length });
-  await kvSet(KEY, q);
+async function read(): Promise<QueuedOp[]> {
+  return (await kvGet<QueuedOp[]>(KEY)) ?? [];
+}
+
+function mutate(fn: (q: QueuedOp[]) => QueuedOp[]): Promise<QueuedOp[]> {
+  return withQueueLock(async () => {
+    const q = fn(await read());
+    await kvSet(KEY, q);
+    useSyncStore.setState({ pending: q.length });
+    return q;
+  });
 }
 
 /** Avisado a cada operação confirmada pelo servidor (com a resposta). */
@@ -56,24 +69,21 @@ export function onSynced(fn: (op: QueuedOp, response: unknown) => void) {
   };
 }
 
-export async function enqueue(op: Omit<QueuedOp, 'id' | 'createdAt' | 'offline'>) {
-  const q = await load();
-  const full: QueuedOp = {
-    ...op,
-    id: uuidv7(),
-    createdAt: new Date().toISOString(),
-    offline: typeof navigator !== 'undefined' && !navigator.onLine,
-  };
-  await save([...q, full]);
+export async function enqueue(op: Omit<QueuedOp, 'id' | 'createdAt'>) {
+  const full: QueuedOp = { ...op, id: uuidv7(), createdAt: new Date().toISOString() };
+  await mutate((q) => [...q, full]);
   void flush();
   return full;
 }
 
 export async function pendingOps(): Promise<QueuedOp[]> {
-  return [...(await load())];
+  return read();
 }
 
-type SendResult = { ok: true; body: unknown } | { ok: false; retry: boolean; message: string };
+type SendResult =
+  | { kind: 'ok'; body: unknown }
+  | { kind: 'retry'; offline: boolean }
+  | { kind: 'rejected'; message: string };
 
 async function send(op: QueuedOp): Promise<SendResult> {
   let res: Response;
@@ -88,44 +98,66 @@ async function send(op: QueuedOp): Promise<SendResult> {
       body: op.body === undefined ? undefined : JSON.stringify(op.body),
     });
   } catch {
-    return { ok: false, retry: true, message: 'offline' };
+    return { kind: 'retry', offline: true };
   }
   if (res.ok) {
-    return { ok: true, body: res.status === 204 ? null : await res.json().catch(() => null) };
+    return { kind: 'ok', body: res.status === 204 ? null : await res.json().catch(() => null) };
+  }
+  // DELETE repetido (resposta anterior perdida) ou criação repetida em corrida: já aplicado.
+  if ((op.method === 'DELETE' && res.status === 404) || res.status === 409) {
+    return { kind: 'ok', body: null };
   }
   // 401 (sessão expirada), 429 e 5xx: tenta de novo depois; demais 4xx não vão passar.
-  const retry = res.status === 401 || res.status === 429 || res.status >= 500;
+  if (res.status === 401 || res.status === 429 || res.status >= 500) {
+    return { kind: 'retry', offline: false };
+  }
   const problem = (await res.json().catch(() => null)) as {
     detail?: string;
     title?: string;
   } | null;
-  return { ok: false, retry, message: problem?.detail ?? problem?.title ?? `HTTP ${res.status}` };
+  return {
+    kind: 'rejected',
+    message: problem?.detail ?? problem?.title ?? `HTTP ${String(res.status)}`,
+  };
 }
 
-/** Envia em ordem; para no primeiro erro de rede para preservar a sequência. */
+async function drain() {
+  useSyncStore.setState({ syncing: true });
+  try {
+    for (;;) {
+      const op = (await read())[0];
+      if (!op) break;
+      const result = await send(op);
+      if (result.kind === 'retry') {
+        useSyncStore.setState({ online: !result.offline });
+        break;
+      }
+      // Remove pelo id: o que foi enfileirado durante o envio fica.
+      await mutate((q) => q.filter((o) => o.id !== op.id));
+      if (result.kind === 'ok') {
+        useSyncStore.setState({ online: true, lastError: null });
+        for (const fn of listeners) fn(op, result.body);
+      } else {
+        useSyncStore.setState({ lastError: result.message });
+      }
+    }
+  } finally {
+    useSyncStore.setState({ syncing: false, pending: (await read()).length });
+  }
+}
+
+/** Envia em ordem; um só envio por vez entre abas; para no primeiro erro de rede. */
 export function flush(): Promise<void> {
   flushing ??= (async () => {
-    useSyncStore.setState({ syncing: true });
     try {
-      for (;;) {
-        const q = await load();
-        const op = q[0];
-        if (!op) break;
-        const result = await send(op);
-        if (!result.ok && result.retry) {
-          useSyncStore.setState({ online: result.message !== 'offline' });
-          break;
-        }
-        await save(q.slice(1));
-        if (result.ok) {
-          useSyncStore.setState({ online: true });
-          for (const fn of listeners) fn(op, result.body);
-        } else {
-          useSyncStore.setState({ lastError: result.message });
-        }
+      if (hasLocks()) {
+        await navigator.locks.request('atlas-flush', { ifAvailable: true }, async (lock) => {
+          if (lock) await drain();
+        });
+      } else {
+        await drain();
       }
     } finally {
-      useSyncStore.setState({ syncing: false });
       flushing = null;
     }
   })();
@@ -133,11 +165,17 @@ export function flush(): Promise<void> {
 }
 
 let started = false;
-/** Liga a sincronização automática: ao voltar a rede e a cada 15 s. */
+/** Liga a sincronização automática: ao voltar a rede, ao trocar de usuário e a cada 15 s. */
 export function startSync() {
   if (started || typeof window === 'undefined') return;
   started = true;
-  void load().then(() => flush());
+  onOfflineUserChange(() => {
+    useSyncStore.setState({ lastError: null });
+    void read().then((q) => {
+      useSyncStore.setState({ pending: q.length });
+      void flush();
+    });
+  });
   window.addEventListener('online', () => {
     useSyncStore.setState({ online: true });
     void flush();
@@ -146,6 +184,9 @@ export function startSync() {
     useSyncStore.setState({ online: false });
   });
   setInterval(() => {
-    if ((queue?.length ?? 0) > 0) void flush();
+    void read().then((q) => {
+      useSyncStore.setState({ pending: q.length });
+      if (q.length > 0) void flush();
+    });
   }, 15_000);
 }

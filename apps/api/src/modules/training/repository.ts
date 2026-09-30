@@ -51,6 +51,7 @@ export interface SessionBundle {
 export interface HistorySet extends SetLogRow {
   sessionId: string;
   sessionStartedAt: Date;
+  sessionEndedAt: Date | null;
   date: string;
   exerciseId: string;
 }
@@ -62,6 +63,7 @@ const historyColumns = {
   set: setLogs,
   sessionId: workoutSessions.id,
   sessionStartedAt: workoutSessions.startedAt,
+  sessionEndedAt: workoutSessions.endedAt,
   date: workoutSessions.date,
   exerciseId: sessionExercises.exerciseId,
 };
@@ -71,6 +73,7 @@ function toHistory(
     set: SetLogRow;
     sessionId: string;
     sessionStartedAt: Date;
+    sessionEndedAt: Date | null;
     date: string;
     exerciseId: string;
   }[],
@@ -79,9 +82,44 @@ function toHistory(
     ...r.set,
     sessionId: r.sessionId,
     sessionStartedAt: r.sessionStartedAt,
+    sessionEndedAt: r.sessionEndedAt,
     date: r.date,
     exerciseId: r.exerciseId,
   }));
+}
+
+type Executor = Database | Tx;
+
+/** Séries do usuário para exercícios, em sessões ativas, na ordem de execução. */
+async function historySets(
+  db: Executor,
+  userId: string,
+  exerciseIds: readonly string[],
+  range?: { from: string; to: string },
+): Promise<HistorySet[]> {
+  if (exerciseIds.length === 0) return [];
+  const rows = await db
+    .select(historyColumns)
+    .from(setLogs)
+    .innerJoin(sessionExercises, eq(sessionExercises.id, setLogs.sessionExerciseId))
+    .innerJoin(workoutSessions, eq(workoutSessions.id, sessionExercises.sessionId))
+    .where(
+      and(
+        liveSession(userId),
+        inArray(sessionExercises.exerciseId, [...exerciseIds]),
+        ...(range
+          ? [gte(workoutSessions.date, range.from), lte(workoutSessions.date, range.to)]
+          : []),
+      ),
+    )
+    .orderBy(
+      asc(workoutSessions.startedAt),
+      asc(workoutSessions.id),
+      asc(setLogs.setIndex),
+      asc(setLogs.loggedAt),
+      asc(setLogs.id),
+    );
+  return toHistory(rows);
 }
 
 /** Toda leitura e escrita exige `userId` (ADR-004); filhos são checados pela sessão/programa. */
@@ -142,7 +180,9 @@ export function createTrainingRepository(db: Database) {
     }
   }
 
+  /** Serializa ativações do mesmo usuário (índice parcial `programs_one_active_uq`). */
   async function deactivateOthers(tx: Tx, userId: string) {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`programs:${userId}`}))`);
     await tx
       .update(programs)
       .set({ status: 'archived' })
@@ -458,28 +498,39 @@ export function createTrainingRepository(db: Database) {
     // Histórico e recordes -----------------------------------------------
 
     /** Séries do usuário para exercícios, em sessões ativas, com `date` opcionalmente limitado. */
-    async historySets(
+    historySets(
       userId: string,
       exerciseIds: readonly string[],
       range?: { from: string; to: string },
     ): Promise<HistorySet[]> {
-      if (exerciseIds.length === 0) return [];
-      const rows = await db
-        .select(historyColumns)
-        .from(setLogs)
-        .innerJoin(sessionExercises, eq(sessionExercises.id, setLogs.sessionExerciseId))
-        .innerJoin(workoutSessions, eq(workoutSessions.id, sessionExercises.sessionId))
-        .where(
-          and(
-            liveSession(userId),
-            inArray(sessionExercises.exerciseId, [...exerciseIds]),
-            ...(range
-              ? [gte(workoutSessions.date, range.from), lte(workoutSessions.date, range.to)]
-              : []),
-          ),
-        )
-        .orderBy(asc(workoutSessions.startedAt), asc(setLogs.setIndex));
-      return toHistory(rows);
+      return historySets(db, userId, exerciseIds, range);
+    },
+
+    /**
+     * Recalcula os recordes de um exercício dentro de uma transação com trava por
+     * (usuário, exercício): lê o histórico, `compute` gera as linhas, substitui todas.
+     */
+    async rebuildExerciseRecords(
+      userId: string,
+      exerciseId: string,
+      compute: (
+        history: HistorySet[],
+      ) => Omit<typeof personalRecords.$inferInsert, 'userId' | 'exerciseId'>[],
+    ) {
+      await db.transaction(async (tx) => {
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtext(${`records:${userId}:${exerciseId}`}))`,
+        );
+        const rows = compute(await historySets(tx, userId, [exerciseId]));
+        await tx
+          .delete(personalRecords)
+          .where(
+            and(eq(personalRecords.userId, userId), eq(personalRecords.exerciseId, exerciseId)),
+          );
+        if (rows.length > 0) {
+          await tx.insert(personalRecords).values(rows.map((r) => ({ ...r, userId, exerciseId })));
+        }
+      });
     },
 
     /** Séries de todas as sessões num intervalo de dias (volume semanal). */
@@ -495,51 +546,11 @@ export function createTrainingRepository(db: Database) {
       return toHistory(rows);
     },
 
-    async replaceSetRecords(
-      userId: string,
-      setLogId: string,
-      rows: Omit<typeof personalRecords.$inferInsert, 'userId' | 'setLogId'>[],
-    ) {
-      await db.transaction(async (tx) => {
-        await tx
-          .delete(personalRecords)
-          .where(and(eq(personalRecords.userId, userId), eq(personalRecords.setLogId, setLogId)));
-        if (rows.length > 0) {
-          await tx.insert(personalRecords).values(rows.map((r) => ({ ...r, userId, setLogId })));
-        }
-      });
-    },
-
     async setRecords(userId: string, setLogId: string) {
       return db
         .select()
         .from(personalRecords)
         .where(and(eq(personalRecords.userId, userId), eq(personalRecords.setLogId, setLogId)));
-    },
-
-    async replaceSessionVolumeRecords(
-      userId: string,
-      sessionId: string,
-      rows: Omit<typeof personalRecords.$inferInsert, 'userId' | 'sessionId' | 'recordType'>[],
-    ) {
-      await db.transaction(async (tx) => {
-        await tx
-          .delete(personalRecords)
-          .where(
-            and(
-              eq(personalRecords.userId, userId),
-              eq(personalRecords.sessionId, sessionId),
-              eq(personalRecords.recordType, 'volume_session'),
-            ),
-          );
-        if (rows.length > 0) {
-          await tx
-            .insert(personalRecords)
-            .values(
-              rows.map((r) => ({ ...r, userId, sessionId, recordType: 'volume_session' as const })),
-            );
-        }
-      });
     },
 
     async exerciseRecords(userId: string, exerciseId: string) {

@@ -78,3 +78,19 @@ export function sessionStats(sets: readonly SetLike[]): ExerciseSessionStats {
     hardSets: sets.filter(isHardSet).length,
   };
 }
+
+/** Linhas de série a exibir: meta, fantasmas ou séries feitas (o maior), mais as extras. */
+export function setRowCount(
+  targetSets: number | null,
+  ghosts: number,
+  loggedIndexes: readonly number[],
+  extra = 0,
+): number {
+  const logged = loggedIndexes.reduce((m, i) => Math.max(m, i + 1), 0);
+  return Math.max(targetSets ?? 0, ghosts, logged, 1) + extra;
+}
+
+/** Duração em minutos inteiros entre dois instantes. */
+export function durationMinutes(start: Date, end: Date): number {
+  return Math.round((end.getTime() - start.getTime()) / 60000);
+}

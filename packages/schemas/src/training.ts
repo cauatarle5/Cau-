@@ -65,6 +65,8 @@ const name = (label: string) =>
     .min(1, { message: `Informe ${label}` })
     .max(120);
 
+const unique = (list: readonly string[]) => new Set(list).size === list.length;
+
 // Exercícios --------------------------------------------------------------
 
 export const exerciseSchema = z.object({
@@ -103,8 +105,16 @@ export const customExerciseInputSchema = z
     equipmentCodes: z.array(z.string().max(40)).max(10).default([]),
     loadType: loadTypeSchema.default('external'),
     defaultIncrementKg: z.number().min(0).max(20).default(2.5),
-    primaryMuscles: z.array(muscleCodeSchema).min(1, { message: 'Escolha o músculo principal' }),
-    secondaryMuscles: z.array(muscleCodeSchema).default([]),
+    primaryMuscles: z
+      .array(muscleCodeSchema)
+      .min(1, { message: 'Escolha o músculo principal' })
+      .max(5)
+      .refine(unique, { message: 'Músculo repetido' }),
+    secondaryMuscles: z
+      .array(muscleCodeSchema)
+      .max(8)
+      .refine(unique, { message: 'Músculo repetido' })
+      .default([]),
   })
   .refine((v) => !v.secondaryMuscles.some((m) => v.primaryMuscles.includes(m)), {
     message: 'Um músculo não pode ser principal e secundário',
@@ -362,14 +372,19 @@ export const sessionListQuerySchema = z
     path: ['from'],
   });
 
-export const sessionExerciseInputSchema = z.object({
-  id: z.uuid().optional(),
-  exerciseId: z.uuid(),
-  targetSets: z.number().int().min(1).max(10).default(3),
-  repMin: z.number().int().min(1).max(100).nullable().default(8),
-  repMax: z.number().int().min(1).max(100).nullable().default(12),
-  restSeconds: z.number().int().min(0).max(900).nullable().default(120),
-});
+export const sessionExerciseInputSchema = z
+  .object({
+    id: z.uuid().optional(),
+    exerciseId: z.uuid(),
+    targetSets: z.number().int().min(1).max(10).default(3),
+    repMin: z.number().int().min(1).max(100).nullable().default(8),
+    repMax: z.number().int().min(1).max(100).nullable().default(12),
+    restSeconds: z.number().int().min(0).max(900).nullable().default(120),
+  })
+  .refine((v) => v.repMin === null || v.repMax === null || v.repMin <= v.repMax, {
+    message: 'Mínimo de repetições acima do máximo',
+    path: ['repMin'],
+  });
 export const sessionExercisePatchSchema = z.object({
   status: z.enum(['pending', 'done', 'skipped']).optional(),
   skipReason: z.string().trim().max(200).nullable().optional(),

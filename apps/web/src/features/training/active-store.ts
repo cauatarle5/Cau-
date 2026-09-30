@@ -3,8 +3,9 @@
 import { uuidv7 } from 'uuidv7';
 import { create } from 'zustand';
 
-import { kvDel, kvGet, kvSet } from '@/offline/kv';
+import { kvDel, kvGet, kvSet, onOfflineUserChange } from '@/offline/kv';
 import { enqueue, onSynced, useSyncStore, type QueuedOp } from '@/offline/queue';
+import { setRowCount } from '@atlas/core';
 import {
   sessionSchema,
   setResultSchema,
@@ -26,6 +27,7 @@ interface Persisted {
   finished: boolean;
   offline: boolean;
   extraSets: Record<string, number>;
+  owned: boolean;
 }
 
 interface ActiveState {
@@ -34,6 +36,8 @@ interface ActiveState {
   /** Alguma escrita foi feita sem rede (`source = offline_sync`, ADR-034). */
   offline: boolean;
   extraSets: Record<string, number>;
+  /** Iniciado neste aparelho. */
+  owned: boolean;
   rest: { endsAt: number; total: number } | null;
   records: RecordNotice[];
   loading: boolean;
@@ -48,6 +52,7 @@ export const useActiveWorkout = create<ActiveState>(() => ({
   finished: false,
   offline: false,
   extraSets: {},
+  owned: false,
   rest: null,
   records: [],
   loading: false,
@@ -57,12 +62,17 @@ export const useActiveWorkout = create<ActiveState>(() => ({
 const get = () => useActiveWorkout.getState();
 
 async function persist() {
-  const { session, finished, offline, extraSets } = get();
+  const { session, finished, offline, extraSets, owned } = get();
   if (!session) return;
-  const data: Persisted = { session, finished, offline, extraSets };
+  const data: Persisted = { session, finished, offline, extraSets, owned };
   await kvSet(sessionKey(session.id), data);
-  if (finished) await kvDel(ACTIVE_KEY);
-  else await kvSet(ACTIVE_KEY, session.id);
+  // Só o treino iniciado neste aparelho vira o "em andamento" (abrir outro do histórico não troca).
+  const current = await kvGet<string>(ACTIVE_KEY);
+  if (finished) {
+    if (current === session.id) await kvDel(ACTIVE_KEY);
+  } else if (owned) {
+    await kvSet(ACTIVE_KEY, session.id);
+  }
 }
 
 function update(fn: (s: SessionDto) => SessionDto, extra: Partial<ActiveState> = {}) {
@@ -96,6 +106,7 @@ export async function loadSession(id: string, fresh?: SessionDto) {
       finished: session.endedAt !== null,
       offline: false,
       extraSets: {},
+      owned: fresh !== undefined,
       loading: false,
     });
     if (session.endedAt === null) await persist();
@@ -105,8 +116,12 @@ export async function loadSession(id: string, fresh?: SessionDto) {
 }
 
 export function rowCount(e: SessionExerciseDto, extra = 0) {
-  const logged = e.sets.reduce((m, s) => Math.max(m, s.setIndex + 1), 0);
-  return Math.max(e.targetSets ?? 0, e.ghosts.length, logged, 1) + extra;
+  return setRowCount(
+    e.targetSets,
+    e.ghosts.length,
+    e.sets.map((s) => s.setIndex),
+    extra,
+  );
 }
 
 export const activeActions = {
@@ -263,8 +278,14 @@ export const activeActions = {
   async close() {
     const session = get().session;
     if (session) await kvDel(sessionKey(session.id));
-    await kvDel(ACTIVE_KEY);
-    useActiveWorkout.setState({ session: null, finished: false, offline: false, extraSets: {} });
+    if (session && (await kvGet<string>(ACTIVE_KEY)) === session.id) await kvDel(ACTIVE_KEY);
+    useActiveWorkout.setState({
+      session: null,
+      finished: false,
+      offline: false,
+      extraSets: {},
+      owned: false,
+    });
   },
 };
 
@@ -304,6 +325,18 @@ function handleSynced(op: QueuedOp, response: unknown) {
 
 if (typeof window !== 'undefined') {
   onSynced(handleSynced);
+  // Outro usuário no aparelho: nada do treino anterior fica na memória.
+  onOfflineUserChange(() => {
+    useActiveWorkout.setState({
+      session: null,
+      finished: false,
+      offline: false,
+      extraSets: {},
+      owned: false,
+      rest: null,
+      records: [],
+    });
+  });
   // Mantém `online` coerente mesmo sem a tela de treino aberta.
   useSyncStore.setState({ online: navigator.onLine });
 }

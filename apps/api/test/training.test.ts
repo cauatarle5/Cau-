@@ -763,5 +763,145 @@ describe('training', () => {
         401,
       );
     });
+
+    it('records are recalculated: warmup-only sessions are no reference; deleting a mistake restores later records', async () => {
+      const u = await registerUser(ctx.app);
+      const call = as(ctx.app, u.cookie);
+      const session = async (minutesAgo: number) =>
+        (
+          await call({
+            method: 'POST',
+            url: '/api/v1/sessions',
+            payload: {
+              name: 'Livre',
+              startedAt: new Date(Date.now() - minutesAgo * 60000).toISOString(),
+            },
+          })
+        ).json<Session>();
+      const addBench = async (s: Session) =>
+        (
+          await call({
+            method: 'POST',
+            url: `/api/v1/sessions/${s.id}/exercises`,
+            payload: { exerciseId: ids.bench },
+          })
+        ).json<Session>().exercises[0]?.id ?? '';
+      const log = async (se: string, setIndex: number, loadKg: number, reps: number, extra = {}) =>
+        (
+          await call({
+            method: 'POST',
+            url: `/api/v1/session-exercises/${se}/sets`,
+            payload: { setIndex, loadKg, reps, ...extra },
+          })
+        ).json<SetResult>();
+      const finish = (s: Session) =>
+        call({ method: 'PATCH', url: `/api/v1/sessions/${s.id}`, payload: { finish: true } });
+
+      // Só aquecimento: não serve de referência.
+      const s0 = await session(300);
+      await log(await addBench(s0), 0, 40, 10, { setType: 'warmup' });
+      await finish(s0);
+
+      const s1 = await session(200);
+      const se1 = await addBench(s1);
+      expect((await log(se1, 0, 60, 10)).records).toEqual([]);
+      expect((await log(se1, 1, 62.5, 10)).records).toEqual([]);
+      await finish(s1);
+
+      // Carga digitada errada tira o recorde da série seguinte; apagar devolve.
+      const s2 = await session(100);
+      const se2 = await addBench(s2);
+      const mistake = await log(se2, 0, 200, 10);
+      expect(mistake.records.map((r) => r.type)).toEqual(['e1rm', 'max_load']);
+      const real = await log(se2, 1, 65, 10);
+      expect(real.records).toEqual([]);
+      const del = await call({ method: 'DELETE', url: `/api/v1/sets/${mistake.set.id}` });
+      expect(del.statusCode).toBe(204);
+      const f2 = (await finish(s2)).json<Session>();
+      // 65 × (1 + 10/30) = 86,67 > 62,5 × 1,333 = 83,33; tonelagem 650 < 1225 (s1).
+      expect(f2.records.map((r) => r.type).sort()).toEqual(['e1rm', 'max_load']);
+
+      // Editar a série para baixo remove o recorde.
+      const edited = await call({
+        method: 'PATCH',
+        url: `/api/v1/sets/${real.set.id}`,
+        payload: { loadKg: 50 },
+      });
+      expect(edited.json<SetResult>().records).toEqual([]);
+      const after = await call({ method: 'GET', url: `/api/v1/sessions/${s2.id}` });
+      expect(after.json<Session>().records).toEqual([]);
+    });
+
+    it('substitution: reverting to the original and resuming keep consistent status', async () => {
+      const s = (
+        await a.call({ method: 'POST', url: '/api/v1/sessions', payload: { name: 'Livre' } })
+      ).json<Session>();
+      const se =
+        (
+          await a.call({
+            method: 'POST',
+            url: `/api/v1/sessions/${s.id}/exercises`,
+            payload: { exerciseId: ids.bench },
+          })
+        ).json<Session>().exercises[0]?.id ?? '';
+      const patch = (payload: object) =>
+        a.call({ method: 'PATCH', url: `/api/v1/session-exercises/${se}`, payload });
+
+      await patch({ substituteExerciseId: ids.dbBench });
+      await patch({ status: 'skipped', skipReason: 'Sem tempo' });
+      const resumed = (await patch({ status: 'pending' })).json<Session>().exercises[0];
+      expect(resumed).toMatchObject({
+        status: 'substituted',
+        substitutedFromExerciseId: ids.bench,
+      });
+
+      const reverted = (await patch({ substituteExerciseId: ids.bench })).json<Session>()
+        .exercises[0];
+      expect(reverted).toMatchObject({
+        exerciseId: ids.bench,
+        substitutedFromExerciseId: null,
+        status: 'pending',
+      });
+    });
+
+    it('rejects duplicated muscles and inverted rep ranges; concurrent activation keeps one active', async () => {
+      const dup = await a.call({
+        method: 'POST',
+        url: '/api/v1/exercises',
+        payload: {
+          namePt: 'Duplicado',
+          movementPattern: 'core',
+          mechanics: 'isolation',
+          primaryMuscles: ['abs', 'abs'],
+        },
+      });
+      expect(dup.statusCode).toBe(400);
+
+      const s = (
+        await a.call({ method: 'POST', url: '/api/v1/sessions', payload: { name: 'Livre' } })
+      ).json<Session>();
+      const inverted = await a.call({
+        method: 'POST',
+        url: `/api/v1/sessions/${s.id}/exercises`,
+        payload: { exerciseId: ids.bench, repMin: 12, repMax: 8 },
+      });
+      expect(inverted.statusCode).toBe(400);
+
+      const u = await registerUser(ctx.app);
+      const call = as(ctx.app, u.cookie);
+      const create = () =>
+        call({ method: 'POST', url: '/api/v1/programs', payload: programPayload(ids, false) });
+      const p1 = (await create()).json<Program>().id;
+      const p2 = (await create()).json<Program>().id;
+      const results = await Promise.all([
+        call({ method: 'POST', url: `/api/v1/programs/${p1}/activate` }),
+        call({ method: 'POST', url: `/api/v1/programs/${p2}/activate` }),
+      ]);
+      expect(results.map((r) => r.statusCode)).toEqual([200, 200]);
+      const list = (await call({ method: 'GET', url: '/api/v1/programs' })).json<{
+        items: Program[];
+      }>();
+      expect(list.items.filter((p) => p.status === 'active')).toHaveLength(1);
+    });
   });
 });

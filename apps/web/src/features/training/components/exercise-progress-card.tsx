@@ -42,7 +42,7 @@ export function ExerciseProgressCard() {
           <p className="text-sm text-muted-foreground">Sem séries registradas neste exercício.</p>
         ) : (
           <>
-            <div className="h-48" aria-label="Gráfico de e1RM">
+            <div className="h-48" role="img" aria-label={`Gráfico de e1RM de ${exercise.namePt}`}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={rows} margin={{ left: -16, right: 8, top: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />

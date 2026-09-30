@@ -1,8 +1,12 @@
 'use client';
 
 import { Minus, Plus } from 'lucide-react';
+import { useState } from 'react';
 
-import { formatNumber } from '@/lib/format';
+import { parseDecimal } from '@/lib/format';
+
+const display = (v: number | null) =>
+  v === null ? '' : v.toLocaleString('pt-BR', { maximumFractionDigits: 2, useGrouping: false });
 
 /** Ajuste rápido de carga/reps com botões grandes (P12.3). */
 export function Stepper({
@@ -22,9 +26,12 @@ export function Stepper({
   unit?: string;
   onChange: (value: number) => void;
 }) {
-  const v = value ?? 0;
-  const set = (n: number) => {
-    onChange(Math.min(max, Math.max(min, Math.round(n * 100) / 100)));
+  // Rascunho enquanto digita: "22," fica na tela até virar "22,5".
+  const [draft, setDraft] = useState<string | null>(null);
+  const clamp = (n: number) => Math.min(max, Math.max(min, Math.round(n * 100) / 100));
+  const bump = (delta: number) => {
+    setDraft(null);
+    onChange(clamp((value ?? 0) + delta));
   };
   return (
     <div className="flex items-center gap-1" role="group" aria-label={label}>
@@ -33,7 +40,7 @@ export function Stepper({
         aria-label={`Diminuir ${label}`}
         className="flex size-11 items-center justify-center rounded-lg border border-border bg-card hover:bg-muted"
         onClick={() => {
-          set(v - step);
+          bump(-step);
         }}
       >
         <Minus className="size-4" aria-hidden />
@@ -42,10 +49,14 @@ export function Stepper({
         aria-label={label}
         inputMode="decimal"
         className="h-11 w-16 rounded-lg border border-border bg-card text-center text-base tabular-nums"
-        value={value === null ? '' : formatNumber(value, 2)}
+        value={draft ?? display(value)}
         onChange={(e) => {
-          const n = Number(e.target.value.replace(',', '.'));
-          if (Number.isFinite(n)) set(n);
+          setDraft(e.target.value);
+          const n = parseDecimal(e.target.value);
+          if (n !== null) onChange(clamp(n));
+        }}
+        onBlur={() => {
+          setDraft(null);
         }}
       />
       <button
@@ -53,7 +64,7 @@ export function Stepper({
         aria-label={`Aumentar ${label}`}
         className="flex size-11 items-center justify-center rounded-lg border border-border bg-card hover:bg-muted"
         onClick={() => {
-          set(v + step);
+          bump(step);
         }}
       >
         <Plus className="size-4" aria-hidden />

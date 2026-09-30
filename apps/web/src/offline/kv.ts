@@ -1,11 +1,43 @@
 /**
- * Armazenamento chave-valor em IndexedDB (ADR-034). Sem IndexedDB (ex.: SSR), usa memória.
+ * Armazenamento chave-valor em IndexedDB (ADR-034), separado por usuário: a fila e a sessão
+ * ativa de uma pessoa nunca aparecem nem são enviadas com a conta de outra no mesmo aparelho.
+ * Sem IndexedDB (ex.: SSR, testes), usa memória.
  */
 const DB_NAME = 'atlas-offline';
 const STORE = 'kv';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 const memory = new Map<string, unknown>();
+
+let user: string | null = null;
+let waiters: ((id: string) => void)[] = [];
+const userListeners = new Set<(id: string) => void>();
+
+/** Define o usuário dono dos dados offline (chamado ao carregar a sessão autenticada). */
+export function setOfflineUser(id: string) {
+  if (user === id) return;
+  user = id;
+  for (const w of waiters) w(id);
+  waiters = [];
+  for (const fn of userListeners) fn(id);
+}
+
+export function onOfflineUserChange(fn: (id: string) => void) {
+  userListeners.add(fn);
+  return () => {
+    userListeners.delete(fn);
+  };
+}
+
+/** Espera o usuário ser conhecido antes de ler ou gravar. */
+function scoped(key: string): Promise<string> {
+  if (user) return Promise.resolve(`${user}:${key}`);
+  return new Promise((resolve) => {
+    waiters.push((id) => {
+      resolve(`${id}:${key}`);
+    });
+  });
+}
 
 function open(): Promise<IDBDatabase> | null {
   if (typeof indexedDB === 'undefined') return null;
@@ -40,22 +72,25 @@ async function run<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => I
 }
 
 export async function kvGet<T>(key: string): Promise<T | undefined> {
-  if (typeof indexedDB === 'undefined') return memory.get(key) as T | undefined;
-  return (await run('readonly', (s) => s.get(key) as IDBRequest<T | undefined>)) ?? undefined;
+  const k = await scoped(key);
+  if (typeof indexedDB === 'undefined') return memory.get(k) as T | undefined;
+  return (await run('readonly', (s) => s.get(k) as IDBRequest<T | undefined>)) ?? undefined;
 }
 
 export async function kvSet(key: string, value: unknown): Promise<void> {
+  const k = await scoped(key);
   if (typeof indexedDB === 'undefined') {
-    memory.set(key, value);
+    memory.set(k, value);
     return;
   }
-  await run('readwrite', (s) => s.put(value, key));
+  await run('readwrite', (s) => s.put(value, k));
 }
 
 export async function kvDel(key: string): Promise<void> {
+  const k = await scoped(key);
   if (typeof indexedDB === 'undefined') {
-    memory.delete(key);
+    memory.delete(k);
     return;
   }
-  await run('readwrite', (s) => s.delete(key));
+  await run('readwrite', (s) => s.delete(k));
 }

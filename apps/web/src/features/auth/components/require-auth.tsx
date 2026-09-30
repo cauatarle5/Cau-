@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
 
 import { ApiError } from '@/lib/api';
+import { setOfflineUser } from '@/offline/kv';
 import type { UserPublic } from '@atlas/schemas';
 
 import { useMe } from '../hooks/use-auth';
@@ -36,6 +37,12 @@ export function RequireAuth({ children }: { children: (user: UserPublic) => Reac
   useEffect(() => {
     if (unauthenticated) router.replace('/entrar');
   }, [unauthenticated, router]);
+
+  // Dados offline (fila e treino ativo) ficam separados por usuário (ADR-034).
+  const userId = me.data?.user.id;
+  useEffect(() => {
+    if (userId) setOfflineUser(userId);
+  }, [userId]);
 
   if (me.data) return <>{children(me.data.user)}</>;
   if (me.error && !unauthenticated)

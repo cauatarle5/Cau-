@@ -2,16 +2,18 @@ import type { z } from 'zod';
 
 import {
   addDays,
-  detectSessionVolumeRecord,
-  detectSetRecords,
+  durationMinutes,
   ghostsFor,
   isHardSet,
   localDate,
+  recordTimeline,
   sessionStats,
+  setRowCount,
   tonnage,
   type ExerciseMuscle,
   type MuscleCode,
   type PerformedExercise,
+  type RecordHit,
   type SetLike,
 } from '@atlas/core';
 import type { PersonalRecordRow, SetLogRow, SessionExerciseRow } from '@atlas/db';
@@ -236,7 +238,11 @@ export function createTrainingService(deps: {
         session.startedAt,
         session.id,
       ).find((list) => list.some((s) => s.completed && s.setType === 'working'));
-      const setCount = Math.max(se.targetSets ?? 0, own.length, 1);
+      const setCount = setRowCount(
+        se.targetSets,
+        0,
+        own.map((x) => x.setIndex),
+      );
       const bundle = info.get(se.exerciseId);
       return {
         id: se.id,
@@ -292,65 +298,63 @@ export function createTrainingService(deps: {
   }
 
   /**
-   * Recordes de uma série contra o histórico anterior do exercício (P8.1): sessões que
-   * começaram antes e séries anteriores da mesma sessão. Sem sessão anterior, não há recorde.
+   * Recalcula todos os recordes dos exercícios a partir do histórico (P8.1, recalculável):
+   * editar ou apagar uma série corrige também os recordes posteriores. Devolve os
+   * recordes por série.
    */
-  async function detectRecords(
-    userId: string,
-    set: SetLogRow,
-    se: SessionExerciseRow,
-    session: { id: string; startedAt: Date },
-  ) {
-    const history = await repo.historySets(userId, [se.exerciseId]);
-    const prior = history.filter(
-      (h) =>
-        h.id !== set.id &&
-        (h.sessionId === session.id
-          ? h.loggedAt <= set.loggedAt
-          : h.sessionStartedAt < session.startedAt),
-    );
-    const hits = prior.some((h) => h.sessionId !== session.id)
-      ? detectSetRecords(toSetLike(set), prior.map(toSetLike))
-      : [];
-    await repo.replaceSetRecords(
-      userId,
-      set.id,
-      hits.map((h) => ({
-        exerciseId: se.exerciseId,
-        recordType: h.type,
-        value: h.value,
-        reps: h.reps,
-        loadKg: h.loadKg,
-        sessionId: session.id,
-        achievedAt: set.loggedAt,
-      })),
-    );
-    return hits;
-  }
-
-  /** Recorde de tonelagem por exercício, recalculado ao finalizar (idempotente). */
-  async function detectVolumeRecords(userId: string, b: SessionBundle, at: Date) {
-    const byExercise = new Map<string, SetLogRow[]>();
-    for (const se of b.exercises) {
-      const own = b.sets.filter((s) => s.sessionExerciseId === se.id);
-      byExercise.set(se.exerciseId, [...(byExercise.get(se.exerciseId) ?? []), ...own]);
+  async function rebuildRecords(userId: string, exerciseIds: Iterable<string>) {
+    const bySet = new Map<string, RecordHit[]>();
+    for (const exerciseId of new Set(exerciseIds)) {
+      await repo.rebuildExerciseRecords(userId, exerciseId, (history) => {
+        const sessions = new Map<string, HistorySet[]>();
+        for (const h of history)
+          sessions.set(h.sessionId, [...(sessions.get(h.sessionId) ?? []), h]);
+        const ordered = [...sessions.values()];
+        const timeline = recordTimeline(
+          ordered.map((sets) => ({
+            id: sets[0]?.sessionId ?? '',
+            finished: sets[0]?.sessionEndedAt != null,
+            sets: sets.map((x) => ({ id: x.id, ...toSetLike(x) })),
+          })),
+        );
+        const rows: {
+          recordType: RecordHit['type'];
+          value: number;
+          reps: number | null;
+          loadKg: number | null;
+          setLogId: string | null;
+          sessionId: string;
+          achievedAt: Date;
+        }[] = history.flatMap((h) =>
+          (timeline.bySet.get(h.id) ?? []).map((hit) => ({
+            recordType: hit.type,
+            value: hit.value,
+            reps: hit.reps,
+            loadKg: hit.loadKg,
+            setLogId: h.id,
+            sessionId: h.sessionId,
+            achievedAt: h.loggedAt,
+          })),
+        );
+        for (const sets of ordered) {
+          const first = sets[0];
+          const hit = first ? timeline.bySession.get(first.sessionId) : undefined;
+          if (!first || !hit) continue;
+          rows.push({
+            recordType: hit.type,
+            value: hit.value,
+            reps: null,
+            loadKg: null,
+            setLogId: null,
+            sessionId: first.sessionId,
+            achievedAt: first.sessionEndedAt ?? first.sessionStartedAt,
+          });
+        }
+        for (const [setId, hits] of timeline.bySet) bySet.set(setId, hits);
+        return rows;
+      });
     }
-    const history = await repo.historySets(userId, [...byExercise.keys()]);
-    const rows = [...byExercise.entries()].flatMap(([exerciseId, own]) => {
-      const previous = previousSessions(
-        history.filter((h) => h.exerciseId === exerciseId),
-        b.session.startedAt,
-        b.session.id,
-      );
-      const hit = detectSessionVolumeRecord(
-        own.map(toSetLike),
-        previous.map((list) => list.map(toSetLike)),
-      );
-      return hit
-        ? [{ exerciseId, value: hit.value, reps: null, loadKg: null, achievedAt: at }]
-        : [];
-    });
-    await repo.replaceSessionVolumeRecords(userId, b.session.id, rows);
+    return bySet;
   }
 
   return {
@@ -509,22 +513,28 @@ export function createTrainingService(deps: {
         }
         values.endedAt = endedAt;
         if (patch.durationMin === undefined) {
-          values.durationMin = Math.round(
-            (endedAt.getTime() - current.session.startedAt.getTime()) / 60000,
-          );
+          values.durationMin = durationMinutes(current.session.startedAt, endedAt);
         }
       }
       await repo.updateSession(userId, id, values);
       if (patch.finish) {
         await repo.markPendingExercises(id);
-        const fresh = await repo.getSession(userId, id);
-        if (fresh) await detectVolumeRecords(userId, fresh, endedAt ?? new Date());
       }
+      if (endedAt)
+        await rebuildRecords(
+          userId,
+          current.exercises.map((e) => e.exerciseId),
+        );
       return getSession(userId, id);
     },
 
     async deleteSession(userId: string, id: string) {
-      if (!(await repo.softDeleteSession(userId, id))) throw notFound('Treino');
+      const current = await repo.getSession(userId, id);
+      if (!current || !(await repo.softDeleteSession(userId, id))) throw notFound('Treino');
+      await rebuildRecords(
+        userId,
+        current.exercises.map((e) => e.exerciseId),
+      );
     },
 
     async addExercise(
@@ -576,14 +586,22 @@ export function createTrainingService(deps: {
           [patch.substituteExerciseId],
           () => 'substituteExerciseId',
         );
-        values.substitutedFromExerciseId = se.substitutedFromExerciseId ?? se.exerciseId;
+        // Voltar ao exercício original desfaz a substituição.
+        const original = se.substitutedFromExerciseId ?? se.exerciseId;
+        const reverting = patch.substituteExerciseId === original;
+        values.substitutedFromExerciseId = reverting ? null : original;
         values.exerciseId = patch.substituteExerciseId;
         values.exerciseName = info.get(patch.substituteExerciseId)?.exercise.namePt ?? '';
-        values.status = 'substituted';
+        values.status = reverting ? 'pending' : 'substituted';
         values.skipReason = null;
       }
       if (patch.status !== undefined) {
-        values.status = patch.status;
+        const substituted =
+          values.substitutedFromExerciseId !== undefined
+            ? values.substitutedFromExerciseId !== null
+            : se.substitutedFromExerciseId !== null;
+        // Retomar um exercício substituído mantém a marca (ADR-036).
+        values.status = patch.status !== 'skipped' && substituted ? 'substituted' : patch.status;
         if (patch.status !== 'skipped') values.skipReason = null;
       }
       if (patch.skipReason !== undefined && (values.status ?? se.status) === 'skipped') {
@@ -602,7 +620,7 @@ export function createTrainingService(deps: {
       sessionExerciseId: string,
       input: z.output<typeof setInputSchema>,
     ): Promise<{ created: boolean; result: SetResult }> {
-      const { exercise: se, session } = await ownedSessionExercise(userId, sessionExerciseId);
+      const { exercise: se } = await ownedSessionExercise(userId, sessionExerciseId);
       if (input.id) {
         const existing = await repo.getSet(userId, input.id);
         if (existing) {
@@ -638,10 +656,13 @@ export function createTrainingService(deps: {
         ...(input.loggedAt ? { loggedAt: new Date(input.loggedAt) } : {}),
       });
       if (!row) throw idTaken();
-      if (se.status === 'pending' || se.status === 'skipped') {
-        await repo.updateSessionExercise(se.id, { status: 'pending', skipReason: null });
+      if (se.status === 'skipped') {
+        await repo.updateSessionExercise(se.id, {
+          status: se.substitutedFromExerciseId ? 'substituted' : 'pending',
+          skipReason: null,
+        });
       }
-      const records = await detectRecords(userId, row, se, session);
+      const records = (await rebuildRecords(userId, [se.exerciseId])).get(row.id) ?? [];
       return { created: true, result: { set: toSetDto(row), records } };
     },
 
@@ -668,7 +689,7 @@ export function createTrainingService(deps: {
       if (patch.loggedAt !== undefined) values.loggedAt = new Date(patch.loggedAt);
       const row = Object.keys(values).length > 0 ? await repo.updateSet(id, values) : found.set;
       if (!row) throw notFound('Série');
-      const records = await detectRecords(userId, row, found.exercise, found.session);
+      const records = (await rebuildRecords(userId, [found.exercise.exerciseId])).get(row.id) ?? [];
       return { set: toSetDto(row), records };
     },
 
@@ -676,6 +697,7 @@ export function createTrainingService(deps: {
       const found = await repo.getSet(userId, id);
       if (!found) throw notFound('Série');
       await repo.deleteSet(id);
+      await rebuildRecords(userId, [found.exercise.exerciseId]);
     },
 
     // Progresso e volume -------------------------------------------------

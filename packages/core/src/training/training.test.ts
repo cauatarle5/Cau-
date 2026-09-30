@@ -4,15 +4,17 @@ import { rankAlternatives, type ExerciseLite } from './alternatives';
 import { ghostsFor } from './ghosts';
 import {
   bestE1rm,
+  durationMinutes,
   effectiveRir,
   estimateE1rm,
   isHardSet,
   rirFromRpe,
   sessionStats,
+  setRowCount,
   tonnage,
   type SetLike,
 } from './metrics';
-import { detectSessionVolumeRecord, detectSetRecords } from './records';
+import { detectSessionVolumeRecord, detectSetRecords, recordTimeline } from './records';
 import { muscleVolume, volumeStatus } from './volume';
 
 const set = (
@@ -226,5 +228,60 @@ describe('rankAlternatives (P8.4)', () => {
     });
     expect(ranked.map((r) => r.exercise.id)).toContain('machine-press');
     expect(ranked.map((r) => r.exercise.id)).not.toContain('squat');
+  });
+});
+
+describe('recordTimeline (recalculável)', () => {
+  const ts = (id: string, loadKg: number, reps: number, extra: Partial<SetLike> = {}) => ({
+    id,
+    ...set(loadKg, reps, extra),
+  });
+
+  it('first real exposure is a reference even after a warmup-only session', () => {
+    const t = recordTimeline([
+      { id: 's0', finished: true, sets: [ts('w', 40, 10, { setType: 'warmup' })] },
+      { id: 's1', finished: true, sets: [ts('a', 60, 10), ts('b', 62.5, 10)] },
+      { id: 's2', finished: true, sets: [ts('c', 65, 10)] },
+    ]);
+    expect(t.bySet.has('a')).toBe(false);
+    expect(t.bySet.has('b')).toBe(false);
+    expect(t.bySet.get('c')?.map((h) => h.type)).toEqual(['e1rm', 'max_load']);
+    // s1 é a primeira tonelagem > 0; s2 (650) < s1 (1225) não é recorde.
+    expect(t.bySession.size).toBe(0);
+  });
+
+  it('within a session compares with earlier sets; removing a mistaken set restores records', () => {
+    const base = { id: 's1', finished: true, sets: [ts('a', 100, 5)] };
+    const withMistake = recordTimeline([
+      base,
+      { id: 's2', finished: true, sets: [ts('x', 200, 5), ts('y', 105, 5)] },
+    ]);
+    expect(withMistake.bySet.has('y')).toBe(false);
+    const fixed = recordTimeline([base, { id: 's2', finished: true, sets: [ts('y', 105, 5)] }]);
+    expect(fixed.bySet.get('y')?.map((h) => h.type)).toEqual(['e1rm', 'max_load']);
+    expect(fixed.bySession.get('s2')?.value).toBe(525);
+  });
+
+  it('unfinished sessions get set records but no tonnage record', () => {
+    const t = recordTimeline([
+      { id: 's1', finished: true, sets: [ts('a', 100, 5)] },
+      { id: 's2', finished: false, sets: [ts('b', 100, 6)] },
+    ]);
+    expect(t.bySet.get('b')?.map((h) => h.type)).toEqual(['e1rm', 'rep_at_load']);
+    expect(t.bySession.size).toBe(0);
+  });
+});
+
+describe('session helpers', () => {
+  it('setRowCount = max(target, ghosts, highest logged index + 1, 1) + extra', () => {
+    expect(setRowCount(3, 0, [], 0)).toBe(3);
+    expect(setRowCount(null, 4, [0], 0)).toBe(4);
+    expect(setRowCount(3, 3, [0, 4], 1)).toBe(6);
+    expect(setRowCount(null, 0, [])).toBe(1);
+  });
+  it('durationMinutes rounds to whole minutes', () => {
+    expect(
+      durationMinutes(new Date('2026-09-30T10:00:00Z'), new Date('2026-09-30T11:02:29Z')),
+    ).toBe(62);
   });
 });
