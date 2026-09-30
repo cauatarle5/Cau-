@@ -61,7 +61,7 @@ Condensado de `PROMPT_MESTRE.md` Parte 4. Tabelas são criadas na fase em que s�
 | Tabela | Colunas |
 |---|---|
 | food_sources | code (`taco\|tbca\|usda\|off\|user\|recipe`), name, license_note |
-| foods | id, user_id, source_code, source_ref, name_pt, name_normalized (trigram), brand, category (`cereals\|legumes\|meats\|poultry\|fish\|eggs\|dairy\|fruits\|vegetables\|tubers\|fats_oils\|sweets\|beverages\|supplements\|prepared\|other`), state (`raw\|cooked\|grilled\|fried\|boiled\|roasted\|ready`), default_unit (`g\|ml`), density_g_per_ml, is_verified, barcode, created_at |
+| foods | id, user_id, source_code, source_ref, name_pt, name_normalized (trigram), brand, is_active (ADR-038), category (`cereals\|legumes\|meats\|poultry\|fish\|eggs\|dairy\|fruits\|vegetables\|tubers\|fats_oils\|sweets\|beverages\|supplements\|prepared\|other`), state (`raw\|cooked\|grilled\|fried\|boiled\|roasted\|ready`), default_unit (`g\|ml`), density_g_per_ml, is_verified, barcode, created_at |
 | food_nutrients (por 100 g/ml) | food_id PK, kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, saturated_fat_g, sodium_mg, potassium_mg?, calcium_mg?, iron_mg?, cholesterol_mg? |
 | food_aliases | id, food_id, user_id (nulo = sistema; ADR-030), alias_normalized |
 | household_measures | id, food_id?, user_id?, unit_code (`unit\|slice\|tbsp\|tsp\|cup\|scoop\|ladle\|portion\|pinch\|glass\|can\|small\|medium\|large`), label_pt, grams, is_default |
@@ -70,9 +70,9 @@ Condensado de `PROMPT_MESTRE.md` Parte 4. Tabelas são criadas na fase em que s�
 ## 4.6 Receitas
 | Tabela | Colunas |
 |---|---|
-| recipes | id, user_id, name, description, servings (1), cooked_weight_g?, is_favorite, tags text[], instructions, created_at |
-| recipe_ingredients | id, recipe_id, food_id, quantity, unit_code, grams, order |
-| recipe_nutrition_cache | recipe_id, total jsonb, per_serving jsonb, per_100g jsonb, computed_at |
+| recipes | id, user_id, name, description, servings (1), cooked_weight_g?, is_favorite, tags text[], instructions, food_id (ADR-038), created_at, deleted_at |
+| recipe_ingredients | id, recipe_id, food_id, food_name (snapshot), quantity, unit_code, grams, nutrients_snapshot jsonb, order |
+| recipe_nutrition_cache | recipe_id, total jsonb, per_serving jsonb, per_100g jsonb, total_grams, serving_grams, computed_at |
 
 Receita como alimento: `foods.source_code = 'recipe'`, `source_ref = recipe_id`.
 
@@ -83,7 +83,7 @@ Receita como alimento: `foods.source_code = 'recipe'`, `source_ref = recipe_id`.
 | energy_estimates | id, user_id, week_start, tdee_formula, tdee_observed, tdee_used, confidence (`low\|medium\|high`), weight_trend_kg, intake_avg_kcal, logged_days, weigh_in_count |
 | meals | id, user_id, date, slot (`breakfast\|morning_snack\|lunch\|afternoon_snack\|pre_workout\|post_workout\|dinner\|supper\|other`), status (`planned\|logged`), eaten_at, name, notes, source_text, created_at |
 | meal_items | id, meal_id, food_id \| recipe_id, food_name (ADR-030), quantity, unit_code, grams, nutrients_snapshot jsonb, parse_confidence, created_at |
-| meal_templates | id, user_id, name, items jsonb, slot_hint |
+| meal_templates | id, user_id, name, items jsonb (com `slot` por item, ADR-040), slot_hint (nulo = modelo de dia) |
 | water_logs | id, user_id, date, ml, logged_at |
 
 ## 4.8 Inteligência
@@ -113,3 +113,4 @@ Receita como alimento: `foods.source_code = 'recipe'`, `source_ref = recipe_id`.
 - Fase 1: `profiles` (+ `clinical_condition`), `availability`, `equipment` (seed), `equipment_access`, `limitations`, `goals`, `sports`, `body_measurements`. Enums como tipos Postgres. `exercise_preferences` fica para a Fase 3 (ADR-019).
 - Fase 2: `food_sources`, `foods` (591 itens TACO), `food_nutrients`, `food_aliases`, `household_measures`, `user_food_usage`, `meals`, `meal_items`, `water_logs`, `nutrition_targets`, `parser_feedback`.
 - Fase 3: `muscles` (19, seed), `exercises` (157 de sistema, seed idempotente por nome; trigram no nome), `exercise_muscles`, `exercise_preferences`, `programs` (índice parcial: um `active` por usuário), `workout_templates`, `template_exercises`, `workout_sessions`, `session_exercises`, `set_logs`, `personal_records`, `idempotency_keys`. Progressão por exercício via join `set_logs` → `session_exercises (exercise_id, session_id)` → `workout_sessions (user_id, date)`.
+- Fase 4: `recipes`, `recipe_ingredients`, `recipe_nutrition_cache`, `meal_templates`; `foods.is_active`; fonte `recipe` em `food_sources`. Receita vira `foods` do usuário com medida `portion` (ADR-038).
