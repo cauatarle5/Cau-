@@ -20,7 +20,7 @@
     "db:migrate": "pnpm --filter @atlas/db db:migrate",
     "db:seed": "pnpm --filter @atlas/db db:seed",
     "db:seed:demo": "pnpm --filter @atlas/db db:seed:demo",
-    "ai:eval": "node -e \"console.log('ai:eval: disponível a partir da Fase 2')\""
+    "ai:eval": "pnpm --filter @atlas/ai ai:eval"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
