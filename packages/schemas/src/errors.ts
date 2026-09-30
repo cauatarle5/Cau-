@@ -10,6 +10,8 @@ export const errorCodes = [
   'RATE_LIMITED',
   'EMAIL_TAKEN',
   'INVALID_CREDENTIALS',
+  'FOOD_NOT_FOUND',
+  'UNIT_NOT_CONVERTIBLE',
   'INTERNAL_ERROR',
 ] as const;
 

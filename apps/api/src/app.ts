@@ -9,13 +9,20 @@ import {
   validatorCompiler,
 } from 'fastify-type-provider-zod';
 
+import { createFoodParser, type FoodParser } from '@atlas/ai';
 import type { Database } from '@atlas/db';
 
 import type { AppConfig } from './config';
 import { authRoutes, createAuthRepository, createAuthService } from './modules/auth/index';
 import { bodyRoutes, createBodyRepository, createBodyService } from './modules/body';
+import { createFoodsRepository, createFoodsService, foodsRoutes } from './modules/foods';
 import { healthRoutes } from './modules/health/index';
-import { createNutritionService, nutritionRoutes } from './modules/nutrition';
+import {
+  createMealsService,
+  createNutritionRepository,
+  createNutritionService,
+  nutritionRoutes,
+} from './modules/nutrition';
 import { createProfileRepository, createProfileService, profileRoutes } from './modules/profile';
 import { errorsPlugin } from './plugins/errors';
 import { securityPlugin } from './plugins/security';
@@ -23,11 +30,13 @@ import { securityPlugin } from './plugins/security';
 export interface BuildAppOptions {
   config: AppConfig;
   db: Database;
+  /** Permite injetar um parser falso nos testes. */
+  parser?: FoodParser;
 }
 
 const REQUEST_ID_PATTERN = /^[\w-]{1,64}$/;
 
-export async function buildApp({ config, db }: BuildAppOptions): Promise<FastifyInstance> {
+export async function buildApp({ config, db, parser }: BuildAppOptions): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
       level: config.logLevel,
@@ -67,7 +76,27 @@ export async function buildApp({ config, db }: BuildAppOptions): Promise<Fastify
     repo: createProfileRepository(db),
     hasWeighIn: (userId) => bodyService.hasWeighIn(userId),
   });
-  const nutritionService = createNutritionService({ profile: profileService, body: bodyService });
+  const nutritionRepo = createNutritionRepository(db);
+  const nutritionService = createNutritionService({
+    profile: profileService,
+    body: bodyService,
+    repo: nutritionRepo,
+  });
+  const foodsService = createFoodsService(createFoodsRepository(db));
+  const mealsService = createMealsService({
+    repo: nutritionRepo,
+    foods: foodsService,
+    nutrition: nutritionService,
+  });
+  const foodParser =
+    parser ??
+    createFoodParser({
+      model: config.aiModelFast,
+      apiKey: config.anthropicApiKey,
+      onError: (err) => {
+        app.log.warn({ err }, 'ai parser failed; falling back to rules');
+      },
+    });
 
   await app.register(
     (v1, _opts, done) => {
@@ -79,7 +108,14 @@ export async function buildApp({ config, db }: BuildAppOptions): Promise<Fastify
       });
       profileRoutes(v1, { service: profileService, nutrition: nutritionService });
       bodyRoutes(v1, { service: bodyService });
-      nutritionRoutes(v1, { service: nutritionService });
+      foodsRoutes(v1, { service: foodsService });
+      nutritionRoutes(v1, {
+        service: nutritionService,
+        meals: mealsService,
+        foods: foodsService,
+        parser: foodParser,
+        aiRateLimitMax: config.aiRateLimitMax,
+      });
       done();
     },
     { prefix: '/api/v1' },

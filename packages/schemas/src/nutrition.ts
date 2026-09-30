@@ -59,12 +59,23 @@ export type TargetsBreakdownDto = z.infer<typeof targetsBreakdownSchema>;
 
 export const targetsBlockedSchema = z.enum(['CLINICAL_CONDITION', 'ONBOARDING_INCOMPLETE']);
 
+export const dayTypeSchema = z.enum([
+  'rest',
+  'training',
+  'hard_training',
+  'sport',
+  'sport_and_training',
+]);
+export type DayTypeDto = z.infer<typeof dayTypeSchema>;
+
 export const dayTargetsSchema = targetsSchema.extend({
   date: z.string(),
-  /** Distribuição por tipo de dia entra na Fase 2 (ADR-015). */
-  dayType: z.null(),
-  method: z.literal('formula'),
+  /** Derivado do plano semanal (ADR-026) ou escolhido pelo usuário. */
+  dayType: dayTypeSchema,
+  dayTypeOverridden: z.boolean(),
+  method: z.enum(['formula', 'adaptive']),
 });
+export type DayTargetsDto = z.infer<typeof dayTargetsSchema>;
 
 export const targetsResponseSchema = z.object({
   blocked: targetsBlockedSchema.nullable(),
@@ -73,3 +84,19 @@ export const targetsResponseSchema = z.object({
   days: z.array(dayTargetsSchema),
 });
 export type TargetsResponse = z.infer<typeof targetsResponseSchema>;
+
+export const dayTypePutSchema = z.object({ dayType: dayTypeSchema });
+export const dayParamSchema = z.object({ date: z.iso.date() });
+
+/** Resumo do dia: metas × consumido × planejado (tela Hoje). */
+export const daySummarySchema = z.object({
+  date: z.string(),
+  blocked: targetsBlockedSchema.nullable(),
+  targets: dayTargetsSchema.nullable(),
+  consumed: targetsSchema,
+  planned: targetsSchema,
+  remaining: targetsSchema.nullable(),
+  waterMl: z.number(),
+  loggedMeals: z.number().int(),
+});
+export type DaySummary = z.infer<typeof daySummarySchema>;

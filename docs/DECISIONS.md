@@ -159,7 +159,7 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
 ## ADR-028: Detalhes do matching e da distribuição semanal
 - **Status:** aceita
 - **Contexto:** P6.2 (matching) e P5.8 (rebalanceamento) deixam parâmetros em aberto.
-- **Decisão:** uso do usuário normalizado como `min(1, vezes_usado / 10)`. Regra de estado padrão aplicada como penalidade × 0,8 na similaridade de itens crus de cereais, leguminosas, carnes, aves, peixes, tubérculos e ovos quando o texto não diz "cru"; aliases cobrem os padrões específicos ("frango" → peito grelhado). O parser por regras separa itens só por vírgula, ";", "+", quebra de linha e " e " (P6.2), não por "com". Rebalanceamento semanal: a diferença para a média é repartida igualmente entre os 7 dias; cada dia respeita o piso max(TMB, 1500/1200), que prevalece sobre a média.
+- **Decisão:** uso do usuário normalizado como `min(1, vezes_usado / 10)`. Regra de estado padrão aplicada como penalidade × 0,8 na similaridade de itens crus de cereais, leguminosas, carnes, aves, peixes, tubérculos e ovos quando o texto não diz "cru"; aliases cobrem os padrões específicos ("frango" → peito grelhado). O parser por regras separa itens só por vírgula, ";", "+", quebra de linha e " e " (P6.2), não por "com". Similaridade de nome = média entre `similarity` e `word_similarity` (o alias exato vence nomes longos). Rebalanceamento semanal: a diferença para a média é repartida igualmente entre os 7 dias; cada dia respeita o piso max(TMB, 1500/1200), que prevalece sobre a média.
 
 ## ADR-029: Arredondamento dos valores da TACO
 - **Status:** aceita
@@ -170,3 +170,8 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
 - **Status:** aceita
 - **Contexto:** histórico imutável (P1.6) e sobrescrita do tipo de dia (P5.8).
 - **Decisão:** `meal_items.food_name` guarda o nome do alimento no momento do registro (junto de `nutrients_snapshot`), para o histórico não depender do catálogo. `nutrition_targets.day_type_overridden` marca o tipo de dia escolhido pelo usuário, que recálculos preservam. `food_aliases.user_id` (nulo = sistema) permite aliases pessoais (P6.2 passo 8).
+
+## ADR-031: Resumo do dia e limite de IA
+- **Status:** aceita
+- **Contexto:** a tela Hoje (P12.2) precisa de consumido × meta antes do DailyContext completo (Fase 6); P3.4 limita endpoints de IA.
+- **Decisão:** `GET /nutrition/day-summary?date` devolve metas do dia, consumido, planejado, restante e água; será absorvido pelo `daily-context` na Fase 6. `POST /nutrition/parse` tem limite por usuário (`AI_RATE_LIMIT_MAX`, padrão 30/min). Unidade de medida caseira sem conversão responde 422 `UNIT_NOT_CONVERTIBLE` e aceita `grams` informado pelo usuário, que vira medida pessoal.

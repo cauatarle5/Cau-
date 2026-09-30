@@ -15,6 +15,9 @@ const envSchema = z.object({
     .transform((u) => new URL(u).origin),
   // Proxies confiáveis para X-Forwarded-For: `loopback` ou lista de IPs/CIDRs separada por vírgula.
   TRUST_PROXY: z.string().default('loopback'),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  AI_MODEL_FAST: z.string().optional(),
+  AI_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(30),
   COOKIE_SECURE: booleanString.optional(),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(5),
 });
@@ -30,6 +33,9 @@ export interface AppConfig {
   /** Tentativas por minuto em login (por IP e por e-mail) e cadastro (por IP). */
   authRateLimitMax: number;
   trustProxy: string;
+  anthropicApiKey: string | undefined;
+  aiModelFast: string | undefined;
+  aiRateLimitMax: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -44,5 +50,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     cookieSecure: parsed.COOKIE_SECURE ?? parsed.NODE_ENV === 'production',
     authRateLimitMax: parsed.AUTH_RATE_LIMIT_MAX,
     trustProxy: parsed.TRUST_PROXY,
+    anthropicApiKey: parsed.ANTHROPIC_API_KEY || undefined,
+    aiModelFast: parsed.AI_MODEL_FAST || undefined,
+    aiRateLimitMax: parsed.AI_RATE_LIMIT_MAX,
   };
 }

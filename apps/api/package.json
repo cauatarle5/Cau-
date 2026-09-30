@@ -11,6 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.129.0",
+    "@atlas/ai": "workspace:*",
     "@atlas/core": "workspace:*",
     "@atlas/db": "workspace:*",
     "@atlas/schemas": "workspace:*",

@@ -56,9 +56,12 @@ describe('GET /nutrition/targets', () => {
     });
     await call({ method: 'POST', url: '/api/v1/goals', payload: { primaryGoal: 'fat_loss' } });
 
+    // Semana seguinte inteira (seg–dom), para não depender do dia de hoje.
+    const dow = new Date(`${today}T00:00:00Z`).getUTCDay();
+    const nextMonday = addDays(today, 7 - ((dow + 6) % 7));
     const res = await call({
       method: 'GET',
-      url: `/api/v1/nutrition/targets?from=${today}&to=${addDays(today, 2)}`,
+      url: `/api/v1/nutrition/targets?from=${nextMonday}&to=${addDays(nextMonday, 6)}`,
     });
     expect(res.statusCode).toBe(200);
     const body = res.json<{
@@ -70,9 +73,16 @@ describe('GET /nutrition/targets', () => {
         locksApplied: string[];
         weightKg: number;
       };
-      days: { date: string; dayType: null; method: string; kcal: number }[];
+      days: {
+        dayType: string;
+        dayTypeOverridden: boolean;
+        method: string;
+        kcal: number;
+        proteinG: number;
+      }[];
     }>();
     expect(body.blocked).toBeNull();
+    // Base semanal = caso conferido à mão no core.
     expect(body.targets).toEqual({
       kcal: 2351,
       proteinG: 176,
@@ -87,13 +97,21 @@ describe('GET /nutrition/targets', () => {
       bmr: { kcal: 1780, method: 'mifflin_st_jeor' },
       locksApplied: [],
     });
-    expect(body.days).toHaveLength(3);
-    expect(body.days[0]).toMatchObject({
-      date: today,
-      dayType: null,
-      method: 'formula',
-      kcal: 2351,
-    });
+    // P5.8: academia seg/ter/qui/sex → training; demais → rest (futebol sem dia fixo).
+    // Brutos: 4 × 2351 + 3 × 2115,9 = 15751,7; alvo 7 × 2351 = 16457 → +100,8/dia.
+    expect(body.days.map((d) => [d.dayType, d.kcal])).toEqual([
+      ['training', 2452],
+      ['training', 2452],
+      ['rest', 2217],
+      ['training', 2452],
+      ['training', 2452],
+      ['rest', 2217],
+      ['rest', 2217],
+    ]);
+    const avg = body.days.reduce((a, d) => a + d.kcal, 0) / 7;
+    expect(Math.abs(avg - 2351)).toBeLessThan(1);
+    expect(new Set(body.days.map((d) => d.proteinG))).toEqual(new Set([176]));
+    expect(body.days[0]).toMatchObject({ method: 'formula', dayTypeOverridden: false });
   });
 
   it('is blocked until onboarding is complete', async () => {
@@ -170,5 +188,73 @@ describe('GET /nutrition/targets', () => {
       b.cookie,
     )({ method: 'GET', url: `/api/v1/nutrition/targets?from=${today}&to=${today}` });
     expect(res.json()).toMatchObject({ blocked: 'ONBOARDING_INCOMPLETE' });
+  });
+});
+
+describe('day type override (P5.8, ADR-026)', () => {
+  let ctx: TestContext;
+  beforeAll(async () => {
+    ctx = await createTestApp();
+  });
+  afterAll(() => ctx.close());
+
+  it('overrides future days, keeps the override, and rejects past days', async () => {
+    const u = await onboardedUser(ctx.app, today);
+    const tomorrow = addDays(today, 1);
+    const res = await u.call({
+      method: 'PUT',
+      url: `/api/v1/nutrition/targets/${tomorrow}/day-type`,
+      payload: { dayType: 'hard_training' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      days: [{ date: tomorrow, dayType: 'hard_training', dayTypeOverridden: true }],
+    });
+
+    const again = await u.call({
+      method: 'GET',
+      url: `/api/v1/nutrition/targets?from=${tomorrow}&to=${tomorrow}`,
+    });
+    expect(again.json()).toMatchObject({
+      days: [{ dayType: 'hard_training', dayTypeOverridden: true }],
+    });
+
+    const past = await u.call({
+      method: 'PUT',
+      url: `/api/v1/nutrition/targets/${addDays(today, -1)}/day-type`,
+      payload: { dayType: 'rest' },
+    });
+    expect(past.statusCode).toBe(400);
+    const bad = await u.call({
+      method: 'PUT',
+      url: `/api/v1/nutrition/targets/${tomorrow}/day-type`,
+      payload: { dayType: 'x' },
+    });
+    expect(bad.statusCode).toBe(400);
+  });
+
+  it('never recalculates past days: the stored snapshot wins', async () => {
+    const u = await onboardedUser(ctx.app, today);
+    const yesterday = addDays(today, -1);
+    const first = (
+      await u.call({
+        method: 'GET',
+        url: `/api/v1/nutrition/targets?from=${yesterday}&to=${yesterday}`,
+      })
+    ).json<{ days: { kcal: number }[] }>();
+    // Muda o objetivo: hoje muda, ontem não.
+    await u.call({ method: 'POST', url: '/api/v1/goals', payload: { primaryGoal: 'muscle_gain' } });
+    const after = (
+      await u.call({
+        method: 'GET',
+        url: `/api/v1/nutrition/targets?from=${yesterday}&to=${yesterday}`,
+      })
+    ).json<{ days: { kcal: number }[] }>();
+    expect(after.days[0]?.kcal).toBe(first.days[0]?.kcal);
+    const todayAfter = (
+      await u.call({ method: 'GET', url: `/api/v1/nutrition/targets?from=${today}&to=${today}` })
+    ).json<{ targets: { kcal: number } }>();
+    // Base passou de −20% para +10%.
+    expect(todayAfter.targets.kcal).toBeGreaterThan(2500);
   });
 });
