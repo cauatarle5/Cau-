@@ -299,3 +299,12 @@ export const idempotencyKeys = pgTable(
     index('idempotency_keys_created_idx').on(t.createdAt),
   ],
 );
+
+export type ExerciseRow = typeof exercises.$inferSelect;
+export type ProgramRow = typeof programs.$inferSelect;
+export type WorkoutTemplateRow = typeof workoutTemplates.$inferSelect;
+export type TemplateExerciseRow = typeof templateExercises.$inferSelect;
+export type WorkoutSessionRow = typeof workoutSessions.$inferSelect;
+export type SessionExerciseRow = typeof sessionExercises.$inferSelect;
+export type SetLogRow = typeof setLogs.$inferSelect;
+export type PersonalRecordRow = typeof personalRecords.$inferSelect;

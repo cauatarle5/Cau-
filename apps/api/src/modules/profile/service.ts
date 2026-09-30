@@ -185,6 +185,22 @@ export function createProfileService({ repo, hasWeighIn }: ProfileServiceDeps) {
     },
 
     /** Sessões de musculação planejadas (ADR-016). */
+    /** Insumos do treino: equipamentos (nulo = sem restrição), contraindicações ativas e prioridades. */
+    async trainingContext(userId: string) {
+      const [access, lims, profile] = await Promise.all([
+        repo.listEquipmentAccess(userId),
+        repo.listLimitations(userId),
+        repo.getProfile(userId),
+      ]);
+      return {
+        equipment: access.length > 0 ? new Set(access.map((a) => a.equipmentCode)) : null,
+        contraindicated: new Set(
+          lims.filter((l) => l.active).flatMap((l) => l.contraindicatedPatterns),
+        ),
+        priorities: new Set(profile?.aestheticPriorities ?? []),
+      };
+    },
+
     async gymSessionMinutes(userId: string) {
       return (await repo.listAvailability(userId))
         .filter((a) => a.kind === 'gym')

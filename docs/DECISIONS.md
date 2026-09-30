@@ -203,3 +203,15 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
 - **Status:** aceita
 - **Contexto:** a Fase 3 é o treino núcleo; periodização e adaptação são da Fase 5.
 - **Decisão:** `workout_sessions.workout_template_id` (aditivo) liga a sessão ao template sem agenda. A meta de cada série é a faixa do template (`rep_min..rep_max`, `target_rir`); os fantasmas são os valores da última sessão com o mesmo exercício, por índice de série. Mesociclos, `planned_workouts`, progressão dupla aplicada às metas, registro de dor e adaptação por prontidão ficam para a Fase 5. Um programa `active` por usuário.
+
+## ADR-036: Detalhes do treino ativo (API)
+- **Status:** aceita (complementa ADR-034/035)
+- **Contexto:** lacunas encontradas ao implementar a Fase 3.
+- **Decisão:**
+  - **Início exige rede:** `POST /sessions` cria os exercícios do template no servidor (ids do servidor) e devolve os fantasmas; daí em diante, séries, pular, finalizar e exercícios adicionados usam ids do cliente e funcionam offline. Substituir exige rede (a lista de alternativas vem da API).
+  - **Snapshot na sessão:** `workout_sessions.name` e, em `session_exercises`, `exercise_name` e as metas (`target_sets`, `rep_min`, `rep_max`, `target_rir`, `rest_seconds`) são copiados no início; editar o template ou o exercício não altera o passado.
+  - **Status `pending`:** `session_exercises.status` ganha `pending` (em andamento). Ao finalizar, pendentes com série concluída viram `done`, os demais `skipped`. `substituted` é final (feito com substituto). Substituir só é permitido antes de registrar séries.
+  - **Recordes:** comparados com sessões que começaram antes e com as séries anteriores da mesma sessão; sem sessão anterior do exercício, não há recorde (primeira exposição é referência). Tonelagem da sessão é recalculada a cada finalização (idempotente).
+  - **Programa ativo:** ativar outro programa arquiva o anterior.
+  - **Contraindicações:** as tags de `limitations.contraindicated_patterns` são comparadas com as tags de contraindicação do exercício e com o seu padrão de movimento.
+  - **Id repetido de outro usuário:** 409 `BAD_REQUEST`, sem revelar o registro.

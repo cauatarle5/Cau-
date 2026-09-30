@@ -22,3 +22,9 @@ export function dateRange(from: string, to: string): string[] {
   for (let d = from; d <= to; d = addDays(d, 1)) out.push(d);
   return out;
 }
+
+/** Segunda-feira da semana (seg–dom) que contém `date`. */
+export function weekStart(date: string): string {
+  const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+  return addDays(date, -((dow + 6) % 7));
+}

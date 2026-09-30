@@ -92,4 +92,12 @@ describe('dates', () => {
       '2027-01-01',
     ]);
   });
+
+  it('weekStart returns the Monday of a Monday–Sunday week', async () => {
+    const { weekStart } = await import('./dates');
+    expect(weekStart('2026-09-30')).toBe('2026-09-28'); // quarta
+    expect(weekStart('2026-09-28')).toBe('2026-09-28'); // segunda
+    expect(weekStart('2026-10-04')).toBe('2026-09-28'); // domingo
+    expect(weekStart('2027-01-01')).toBe('2026-12-28'); // virada de ano
+  });
 });

@@ -12,6 +12,7 @@ export const errorCodes = [
   'INVALID_CREDENTIALS',
   'FOOD_NOT_FOUND',
   'UNIT_NOT_CONVERTIBLE',
+  'IDEMPOTENCY_KEY_REUSED',
   'INTERNAL_ERROR',
 ] as const;
 

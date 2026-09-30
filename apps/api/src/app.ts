@@ -13,8 +13,14 @@ import { createFoodParser, type FoodParser } from '@atlas/ai';
 import type { Database } from '@atlas/db';
 
 import type { AppConfig } from './config';
+import { analyticsRoutes, createAnalyticsService } from './modules/analytics';
 import { authRoutes, createAuthRepository, createAuthService } from './modules/auth/index';
 import { bodyRoutes, createBodyRepository, createBodyService } from './modules/body';
+import {
+  createExercisesRepository,
+  createExercisesService,
+  exercisesRoutes,
+} from './modules/exercises';
 import { createFoodsRepository, createFoodsService, foodsRoutes } from './modules/foods';
 import { healthRoutes } from './modules/health/index';
 import {
@@ -24,7 +30,13 @@ import {
   nutritionRoutes,
 } from './modules/nutrition';
 import { createProfileRepository, createProfileService, profileRoutes } from './modules/profile';
+import {
+  createTrainingRepository,
+  createTrainingService,
+  trainingRoutes,
+} from './modules/training';
 import { errorsPlugin } from './plugins/errors';
+import { idempotencyPlugin } from './plugins/idempotency';
 import { securityPlugin } from './plugins/security';
 
 export interface BuildAppOptions {
@@ -61,6 +73,7 @@ export async function buildApp({ config, db, parser }: BuildAppOptions): Promise
 
   await app.register(errorsPlugin);
   await app.register(securityPlugin, { webOrigin: config.webOrigin });
+  await app.register(idempotencyPlugin, { db });
 
   if (config.nodeEnv === 'development') {
     await app.register(swagger, {
@@ -87,6 +100,19 @@ export async function buildApp({ config, db, parser }: BuildAppOptions): Promise
     repo: nutritionRepo,
     foods: foodsService,
     nutrition: nutritionService,
+  });
+  const exercisesService = createExercisesService({
+    repo: createExercisesRepository(db),
+    profile: profileService,
+  });
+  const trainingService = createTrainingService({
+    repo: createTrainingRepository(db),
+    exercises: exercisesService,
+  });
+  const analyticsService = createAnalyticsService({
+    training: trainingService,
+    exercises: exercisesService,
+    profile: profileService,
   });
   const foodParser =
     parser ??
@@ -116,6 +142,9 @@ export async function buildApp({ config, db, parser }: BuildAppOptions): Promise
         parser: foodParser,
         aiRateLimitMax: config.aiRateLimitMax,
       });
+      exercisesRoutes(v1, { service: exercisesService });
+      trainingRoutes(v1, { service: trainingService });
+      analyticsRoutes(v1, { service: analyticsService });
       done();
     },
     { prefix: '/api/v1' },

@@ -57,3 +57,24 @@ export function bestE1rm(sets: readonly SetLike[]): number | null {
   }
   return best;
 }
+
+export interface ExerciseSessionStats {
+  bestE1rm: number | null;
+  topLoadKg: number | null;
+  tonnage: number;
+  workingSets: number;
+  hardSets: number;
+}
+
+/** Resumo de um exercício numa sessão (progresso por exercício). */
+export function sessionStats(sets: readonly SetLike[]): ExerciseSessionStats {
+  const working = sets.filter(countsAsWorking);
+  const loads = working.flatMap((s) => (s.loadKg === null ? [] : [s.loadKg]));
+  return {
+    bestE1rm: bestE1rm(sets),
+    topLoadKg: loads.length > 0 ? Math.max(...loads) : null,
+    tonnage: tonnage(sets),
+    workingSets: working.length,
+    hardSets: sets.filter(isHardSet).length,
+  };
+}

@@ -8,6 +8,7 @@ import {
   estimateE1rm,
   isHardSet,
   rirFromRpe,
+  sessionStats,
   tonnage,
   type SetLike,
 } from './metrics';
@@ -73,6 +74,27 @@ describe('RIR/RPE and hard sets', () => {
   });
   it('tonnage = Σ load × reps of working sets', () => {
     expect(tonnage([set(100, 5), set(100, 5), set(60, 10, { setType: 'warmup' })])).toBe(1000);
+  });
+  it('session stats: best e1RM, top load, tonnage, working and hard sets', () => {
+    const stats = sessionStats([
+      set(60, 10, { setType: 'warmup' }),
+      set(100, 5, { rir: 1 }),
+      set(90, 8, { rir: 4 }),
+      set(100, 4, { completed: false }),
+    ]);
+    // 100 × (1 + 6/30) = 120; 90 × (1 + 12/30) = 126
+    expect(stats.bestE1rm).toBeCloseTo(126, 6);
+    expect(stats.topLoadKg).toBe(100);
+    expect(stats.tonnage).toBe(1220);
+    expect(stats.workingSets).toBe(2);
+    expect(stats.hardSets).toBe(1);
+    expect(sessionStats([])).toEqual({
+      bestE1rm: null,
+      topLoadKg: null,
+      tonnage: 0,
+      workingSets: 0,
+      hardSets: 0,
+    });
   });
 });
 
