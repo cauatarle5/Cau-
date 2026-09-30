@@ -16,7 +16,7 @@ Condensado de `PROMPT_MESTRE.md` Parte 4. Tabelas são criadas na fase em que s�
 |---|---|
 | users | id, email (citext único), password_hash, name, timezone (`America/Sao_Paulo`), locale, created_at |
 | sessions | id, user_id, token_hash, expires_at, user_agent, ip, created_at |
-| profiles (1:1) | sex (`male\|female`, só fórmulas), birth_date, height_cm, training_experience (`beginner\|intermediate\|advanced`), training_age_years, conditioning_level (1–5), activity_lifestyle (`sedentary\|light\|moderate\|high`), aesthetic_priorities text[], performance_priorities text[], notes |
+| profiles (1:1) | sex (`male\|female`, só fórmulas), birth_date, height_cm, training_experience (`beginner\|intermediate\|advanced`), training_age_years, conditioning_level (1–5), activity_lifestyle (`sedentary\|light\|moderate\|high`), aesthetic_priorities text[], performance_priorities text[], notes, clinical_condition boolean (ADR-017) |
 | availability | id, user_id, weekday (0–6), start_time, end_time, max_minutes, kind (`gym\|sport\|any`) |
 | equipment_access | id, user_id, equipment_code → equipment, location (`gym\|home\|other`) |
 | limitations | id, user_id, body_region, description, severity (1–3), contraindicated_patterns text[], active, started_at, resolved_at |
@@ -107,4 +107,5 @@ Receita como alimento: `foods.source_code = 'recipe'`, `source_ref = recipe_id`.
 - `(user_id, status, date)` em `meals` e `planned_workouts`.
 
 ## Estado atual
-Fase 0 cria apenas `users` e `sessions` e habilita as extensões `pg_trgm`, `unaccent`, `citext`.
+- Fase 0: `users`, `sessions`; extensões `pg_trgm`, `unaccent`, `citext`.
+- Fase 1: `profiles` (+ `clinical_condition`), `availability`, `equipment` (seed), `equipment_access`, `limitations`, `goals`, `sports`, `body_measurements`. Enums como tipos Postgres. `exercise_preferences` fica para a Fase 3 (ADR-019); `nutrition_targets` para a Fase 2 (ADR-015).
