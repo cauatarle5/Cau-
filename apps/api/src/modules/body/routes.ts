@@ -49,8 +49,10 @@ export function bodyRoutes(app: FastifyInstance, opts: { service: BodyService })
         response: { 201: bodyMeasurementCreateResponseSchema, ...errors },
       },
     },
-    async (req, reply) =>
-      reply.status(201).send(await service.create(authed(req).userId, req.body)),
+    async (req, reply) => {
+      const { userId, today } = authed(req);
+      return reply.status(201).send(await service.create(userId, req.body, today));
+    },
   );
 
   r.patch(
@@ -64,7 +66,10 @@ export function bodyRoutes(app: FastifyInstance, opts: { service: BodyService })
         response: { 200: bodyMeasurementSchema, ...errors },
       },
     },
-    (req) => service.update(authed(req).userId, req.params.id, req.body),
+    (req) => {
+      const { userId, today } = authed(req);
+      return service.update(userId, req.params.id, req.body, today);
+    },
   );
 
   r.delete(

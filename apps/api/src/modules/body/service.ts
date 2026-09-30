@@ -68,12 +68,19 @@ function decodeCursor(cursor: string | undefined): { date: string; id: string } 
   throw validationError([{ field: 'cursor', message: 'Cursor inválido' }]);
 }
 
+/** Medidas no futuro distorceriam tendência e metas de hoje. */
+function assertNotFuture(date: string, today: string) {
+  if (date > today)
+    throw validationError([{ field: 'date', message: 'A data não pode ser no futuro' }]);
+}
+
 const toWeighIns = (rows: { date: string; weightKg: number | null }[]): WeighIn[] =>
   rows.flatMap((r) => (r.weightKg === null ? [] : [{ date: r.date, weightKg: r.weightKg }]));
 
 export function createBodyService(repo: BodyRepository) {
   return {
-    async create(userId: string, input: CreateInput) {
+    async create(userId: string, input: CreateInput, today: string) {
+      assertNotFuture(input.date, today);
       const warnings: MeasurementWarning[] = [];
       if (input.weightKg !== undefined && input.weightKg !== null) {
         const previous = latestTrend(
@@ -100,7 +107,8 @@ export function createBodyService(repo: BodyRepository) {
       };
     },
 
-    async update(userId: string, id: string, patch: PatchInput) {
+    async update(userId: string, id: string, patch: PatchInput, today: string) {
+      if (patch.date) assertNotFuture(patch.date, today);
       const current = await repo.get(userId, id);
       if (!current) throw notFound('Medida');
       const merged = { ...current, ...patch };

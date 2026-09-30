@@ -119,3 +119,14 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
 - **Status:** aceita
 - **Contexto:** P5.4 e P5.6 dão faixas; o cálculo precisa de um número.
 - **Decisão:** fat_loss −20% (valor padrão indicado); recomposition −5%; performance 0% (o carboidrato alto sai da regra de macros); proteína 2,2 g/kg em fat_loss/recomposition. `target_rate_pct_per_week` tem sinal (negativo = perder). Arredondamento: kcal e gramas inteiros (macros calculados a partir da kcal e da proteína já arredondadas); água em múltiplos de 50 ml.
+
+## ADR-022: Ajustes da revisão da Fase 1
+- **Status:** aceita
+- **Contexto:** revisão da Fase 1 (checklist 16.3).
+- **Decisão:**
+  - `target_rate_pct_per_week` precisa combinar com o objetivo (P5.4): fat_loss −1,0 a −0,5; maintenance −0,25 a +0,25; muscle_gain +0,25 a +0,5; recomposition e performance não usam ritmo.
+  - Proteína por massa magra (P5.6) só com gordura medida (dexa, dobras, bioimpedância) nos últimos 60 dias, mesma regra da TMB.
+  - Com trava aplicada, as kcal são arredondadas para cima, nunca ficando abaixo do limite.
+  - Medidas corporais com data no futuro são rejeitadas.
+  - PATCH não aplica valores padrão a campos ausentes.
+- **Consequências:** proteína + gordura acima das kcal (só possível com `protein_g_per_kg` muito alto) segue em aberto em `OPEN_QUESTIONS.md`.

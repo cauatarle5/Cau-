@@ -268,6 +268,35 @@ describe('computeTargets (hand-checked cases)', () => {
     expect(breakdown.locksApplied).toEqual(['MIN_BMR']);
   });
 
+  it('lean-mass protein needs a measured, recent body fat (same rule as BMR)', () => {
+    const base = { ...man, goal: 'maintenance' as const, weightKg: 100 };
+    const visual = computeTargets({ ...base, bodyFat: { pct: 30, method: 'visual', daysAgo: 1 } });
+    expect(visual.breakdown.protein.basis).toBe('total_weight');
+    const old = computeTargets({ ...base, bodyFat: { pct: 30, method: 'dexa', daysAgo: 400 } });
+    expect(old.breakdown.protein.basis).toBe('total_weight');
+    const fresh = computeTargets({ ...base, bodyFat: { pct: 30, method: 'dexa', daysAgo: 5 } });
+    expect(fresh.breakdown.protein).toMatchObject({ basis: 'lean_mass', gPerKg: 2.4 });
+    expect(fresh.targets.proteinG).toBe(168);
+  });
+
+  it('never rounds a locked value below the lock', () => {
+    // 50,04 kg → TMB 1214,4; arredondar daria 1214 (< TMB). Com trava, arredonda para cima: 1215.
+    const { targets, breakdown } = computeTargets({
+      sex: 'female',
+      ageYears: 25,
+      heightCm: 160,
+      weightKg: 50.04,
+      lifestyle: 'sedentary',
+      experience: 'beginner',
+      goal: 'fat_loss',
+      gymSessionMinutes: [],
+      sports: [],
+    });
+    expect(breakdown.bmr.kcal).toBeCloseTo(1214.4, 6);
+    expect(breakdown.locksApplied).toEqual(['MIN_BMR']);
+    expect(targets.kcal).toBe(1215);
+  });
+
   it('aggressive target rate is capped at 25% deficit', () => {
     // −1%/sem: −880 kcal → 2058,6; piso 0,75 × 2938,57 = 2203,9 → 2204
     const { targets, breakdown } = computeTargets({ ...man, targetRatePctPerWeek: -1 });

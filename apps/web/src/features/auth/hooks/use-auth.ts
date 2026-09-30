@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { useOnboarding } from '@/features/onboarding/store';
 import type { LoginInput, RegisterInput } from '@atlas/schemas';
 
 import { authApi } from '../api';
@@ -38,6 +39,7 @@ export function useLogout() {
     mutationFn: authApi.logout,
     onSettled: () => {
       qc.clear();
+      useOnboarding.getState().reset();
     },
   });
 }

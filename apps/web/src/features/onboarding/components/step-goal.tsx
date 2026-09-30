@@ -32,9 +32,14 @@ export function StepGoal() {
       setError('Escolha um objetivo');
       return;
     }
+    // Nova versão preserva o que não é editado aqui; o ritmo só vale para o mesmo objetivo.
     const input: GoalInput = {
       primaryGoal: goal,
       targetWeightKg: targetWeight ? Number(targetWeight) : null,
+      targetBodyFatPct: current?.targetBodyFatPct ?? null,
+      targetRatePctPerWeek: current?.primaryGoal === goal ? current.targetRatePctPerWeek : null,
+      proteinGPerKg: current?.proteinGPerKg ?? null,
+      trainingFocus: current?.trainingFocus ?? null,
     };
     const key = JSON.stringify(input);
     const unchanged =

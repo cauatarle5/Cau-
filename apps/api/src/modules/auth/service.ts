@@ -2,6 +2,7 @@ import type { User } from '@atlas/db';
 import type { LoginInput, RegisterInput, UserPublic } from '@atlas/schemas';
 
 import { AppError } from '../../lib/errors';
+import { PG_UNIQUE_VIOLATION, pgErrorCode } from '../../lib/pg';
 
 import { hashPassword, verifyPassword } from './password';
 import type { AuthRepository } from './repository';
@@ -31,14 +32,7 @@ export interface AuthContext {
   renewedExpiresAt: Date | null;
 }
 
-const PG_UNIQUE_VIOLATION = '23505';
-
-function isUniqueViolation(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) return false;
-  const code = (error as { code?: unknown }).code;
-  const cause = (error as { cause?: unknown }).cause;
-  return code === PG_UNIQUE_VIOLATION || (cause !== undefined && isUniqueViolation(cause));
-}
+const isUniqueViolation = (error: unknown) => pgErrorCode(error) === PG_UNIQUE_VIOLATION;
 
 export function toUserPublic(user: User): UserPublic {
   return {

@@ -104,16 +104,22 @@ export type EquipmentResponse = z.infer<typeof equipmentResponseSchema>;
 
 // Limitações --------------------------------------------------------------
 
-export const limitationInputSchema = z.object({
+const limitationFields = z.object({
   bodyRegion: z.string().trim().min(1, { message: 'Informe a região' }).max(60),
-  description: z.string().trim().max(500).default(''),
+  description: z.string().trim().max(500),
   severity: z.number().int().min(1).max(3),
-  contraindicatedPatterns: z.array(tag).max(20).default([]),
-  active: z.boolean().default(true),
+  contraindicatedPatterns: z.array(tag).max(20),
+  active: z.boolean(),
   startedAt: dateSchema.nullable().optional(),
   resolvedAt: dateSchema.nullable().optional(),
 });
-export const limitationPatchSchema = limitationInputSchema.partial();
+export const limitationInputSchema = limitationFields.extend({
+  description: limitationFields.shape.description.default(''),
+  contraindicatedPatterns: limitationFields.shape.contraindicatedPatterns.default([]),
+  active: limitationFields.shape.active.default(true),
+});
+/** Sem defaults: campos ausentes no PATCH não podem ser sobrescritos. */
+export const limitationPatchSchema = limitationFields.partial();
 export const limitationSchema = z.object({
   id: z.uuid(),
   bodyRegion: z.string(),
@@ -146,15 +152,46 @@ export const sportsResponseSchema = z.object({
 
 // Objetivos (versionados) --------------------------------------------------
 
-export const goalInputSchema = z.object({
-  primaryGoal: primaryGoalSchema,
-  targetWeightKg: ranges.weightKg().nullable().optional(),
-  targetBodyFatPct: ranges.bodyFatPct().nullable().optional(),
-  /** Com sinal: negativo = perder (ADR-021). */
-  targetRatePctPerWeek: z.number().min(-1.5).max(1.5).nullable().optional(),
-  proteinGPerKg: z.number().min(1.2).max(3.5).nullable().optional(),
-  trainingFocus: z.string().trim().max(60).nullable().optional(),
-});
+/** Faixas de ritmo semanal por objetivo, em % do peso (P5.4, ADR-022). */
+export const GOAL_RATE_RANGES: Record<
+  z.infer<typeof primaryGoalSchema>,
+  readonly [number, number] | null
+> = {
+  fat_loss: [-1, -0.5],
+  maintenance: [-0.25, 0.25],
+  muscle_gain: [0.25, 0.5],
+  recomposition: null,
+  performance: null,
+};
+
+export const goalInputSchema = z
+  .object({
+    primaryGoal: primaryGoalSchema,
+    targetWeightKg: ranges.weightKg().nullable().optional(),
+    targetBodyFatPct: ranges.bodyFatPct().nullable().optional(),
+    /** Com sinal: negativo = perder (ADR-021). */
+    targetRatePctPerWeek: z.number().min(-1.5).max(1.5).nullable().optional(),
+    proteinGPerKg: z.number().min(1.2).max(3.5).nullable().optional(),
+    trainingFocus: z.string().trim().max(60).nullable().optional(),
+  })
+  .superRefine((g, ctx) => {
+    const rate = g.targetRatePctPerWeek;
+    if (rate === undefined || rate === null) return;
+    const range = GOAL_RATE_RANGES[g.primaryGoal];
+    if (!range) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['targetRatePctPerWeek'],
+        message: 'Este objetivo não usa ritmo semanal',
+      });
+    } else if (rate < range[0] || rate > range[1]) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['targetRatePctPerWeek'],
+        message: `Ritmo fora da faixa do objetivo (${String(range[0])}% a ${String(range[1])}% por semana)`,
+      });
+    }
+  });
 export type GoalInput = z.infer<typeof goalInputSchema>;
 
 export const goalSchema = z.object({

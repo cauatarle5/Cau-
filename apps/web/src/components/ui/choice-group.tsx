@@ -1,5 +1,7 @@
 'use client';
 
+import { Check } from 'lucide-react';
+
 import { cn } from '@/lib/utils';
 
 interface Option<T extends string> {
@@ -28,8 +30,13 @@ export function ChoiceGroup<T extends string>({
   error,
   columns = 2,
 }: ChoiceGroupProps<T>) {
+  const errorId = `${name}-error`;
   return (
-    <fieldset className="space-y-2">
+    <fieldset
+      className="space-y-2"
+      aria-invalid={error ? true : undefined}
+      aria-describedby={error ? errorId : undefined}
+    >
       <legend className="text-sm font-medium">{legend}</legend>
       <div
         className={cn(
@@ -56,12 +63,21 @@ export function ChoiceGroup<T extends string>({
                 onChange(o.value);
               }}
             />
-            <span className="font-medium">{o.label}</span>
+            <span className="flex items-center justify-between gap-2 font-medium">
+              {o.label}
+              {value === o.value ? (
+                <Check className="size-4 shrink-0 text-primary" aria-hidden />
+              ) : null}
+            </span>
             {o.hint ? <span className="text-xs text-muted-foreground">{o.hint}</span> : null}
           </label>
         ))}
       </div>
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? (
+        <p id={errorId} className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
     </fieldset>
   );
 }

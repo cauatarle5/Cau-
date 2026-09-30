@@ -1,6 +1,6 @@
 import { roundTo } from '../units';
 
-import { selectBmr, type BmrInput, type BmrResult } from './bmr';
+import { isMeasuredBodyFat, selectBmr, type BmrInput, type BmrResult } from './bmr';
 import { energyAdjustment, type EnergyAdjustment } from './goals';
 import {
   carbsAndFat,
@@ -69,7 +69,8 @@ export interface TargetsResult {
  */
 export function computeTargets(input: TargetsInput): TargetsResult {
   const { weightKg } = input;
-  const bodyFatPct = input.bodyFat?.pct ?? null;
+  // Só gordura medida e recente (mesma regra da TMB) muda a base da proteína (ADR-022).
+  const bodyFatPct = isMeasuredBodyFat(input.bodyFat) ? (input.bodyFat?.pct ?? null) : null;
 
   const bmr = selectBmr({
     sex: input.sex,
@@ -95,7 +96,8 @@ export function computeTargets(input: TargetsInput): TargetsResult {
     sex: input.sex,
   });
 
-  const kcal = Math.round(locked.kcal);
+  // Com trava aplicada, arredonda para cima para nunca ficar abaixo do limite.
+  const kcal = locked.applied.length > 0 ? Math.ceil(locked.kcal) : Math.round(locked.kcal);
   const protein = proteinTarget({
     goal: input.goal,
     sex: input.sex,

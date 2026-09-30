@@ -18,7 +18,7 @@ export default function ProfilePage() {
   const profile = useProfile().data?.profile;
   const goal = useGoals().data?.items[0];
   const logout = useLogout();
-  const setStep = useOnboarding((s) => s.setStep);
+  const resetOnboarding = useOnboarding((s) => s.reset);
 
   const onLogout = () => {
     logout.mutate(undefined, {
@@ -62,7 +62,7 @@ export default function ProfilePage() {
               <Link
                 href="/onboarding"
                 onClick={() => {
-                  setStep(0);
+                  resetOnboarding();
                 }}
               >
                 Editar dados e objetivo

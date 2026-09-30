@@ -96,6 +96,8 @@ export function StepBasics({ initialWeightKg }: { initialWeightKg: number | unde
         clinicalCondition: v.clinicalCondition,
         aestheticPriorities: profile?.aestheticPriorities ?? [],
         performancePriorities: profile?.performancePriorities ?? [],
+        trainingAgeYears: profile?.trainingAgeYears ?? null,
+        notes: profile?.notes ?? null,
       });
       const measurement = {
         date: today,
@@ -105,7 +107,11 @@ export function StepBasics({ initialWeightKg }: { initialWeightKg: number | unde
           : {}),
       };
       if (weighInId) {
-        await bodyApi.patch(weighInId, measurement);
+        // Corrige a pesagem criada nesta sessão; gordura apagada volta a nulo.
+        await bodyApi.patch(weighInId, {
+          ...measurement,
+          ...(v.bodyFatPct === undefined ? { bodyFatPct: null, bodyFatMethod: null } : {}),
+        });
       } else if (initialWeightKg !== v.weightKg || v.bodyFatPct !== undefined) {
         const created = await bodyApi.create(measurement);
         setWeighInId(created.measurement.id);

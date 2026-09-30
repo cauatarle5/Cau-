@@ -111,6 +111,7 @@ describe('body module', () => {
       { date: today, weightKg: 400 },
       { date: today, bodyFatPct: 20 },
       { date: '30/09/2026', weightKg: 80 },
+      { date: addDays(today, 2), weightKg: 80 },
     ]) {
       const res = await call({ method: 'POST', url: '/api/v1/body-measurements', payload });
       expect(res.statusCode, JSON.stringify(payload)).toBe(400);

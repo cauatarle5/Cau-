@@ -249,12 +249,22 @@ describe('profile module', () => {
       }>();
       expect(list.items.map((g) => g.primaryGoal)).toEqual(['maintenance', 'fat_loss']);
 
-      const bad = await u.call({
+      // Ritmo precisa combinar com o objetivo (P5.4, ADR-022).
+      for (const payload of [
+        { primaryGoal: 'fat_loss', targetRatePctPerWeek: -3 },
+        { primaryGoal: 'fat_loss', targetRatePctPerWeek: 0.5 },
+        { primaryGoal: 'muscle_gain', targetRatePctPerWeek: 1.5 },
+        { primaryGoal: 'recomposition', targetRatePctPerWeek: -0.5 },
+      ]) {
+        const bad = await u.call({ method: 'POST', url: '/api/v1/goals', payload });
+        expect(bad.statusCode, JSON.stringify(payload)).toBe(400);
+      }
+      const ok = await u.call({
         method: 'POST',
         url: '/api/v1/goals',
-        payload: { primaryGoal: 'fat_loss', targetRatePctPerWeek: -3 },
+        payload: { primaryGoal: 'fat_loss', targetRatePctPerWeek: -0.75 },
       });
-      expect(bad.statusCode).toBe(400);
+      expect(ok.statusCode).toBe(201);
     });
   });
 

@@ -22,6 +22,8 @@ interface OnboardingState {
   back: () => void;
   setWeighInId: (id: string) => void;
   setGoalKey: (key: string) => void;
+  /** Volta ao início e esquece o rascunho (logout, edição). */
+  reset: () => void;
 }
 
 /** Rascunho do onboarding em memória (Zustand, PROMPT_MESTRE 3.1). */
@@ -43,5 +45,8 @@ export const useOnboarding = create<OnboardingState>((set) => ({
   },
   setGoalKey: (key) => {
     set({ goalKey: key });
+  },
+  reset: () => {
+    set({ step: 0, weighInId: null, goalKey: null });
   },
 }));
