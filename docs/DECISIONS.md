@@ -175,3 +175,16 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
 - **Status:** aceita
 - **Contexto:** a tela Hoje (P12.2) precisa de consumido × meta antes do DailyContext completo (Fase 6); P3.4 limita endpoints de IA.
 - **Decisão:** `GET /nutrition/day-summary?date` devolve metas do dia, consumido, planejado, restante e água; será absorvido pelo `daily-context` na Fase 6. `POST /nutrition/parse` tem limite por usuário (`AI_RATE_LIMIT_MAX`, padrão 30/min). Unidade de medida caseira sem conversão responde 422 `UNIT_NOT_CONVERTIBLE` e aceita `grams` informado pelo usuário, que vira medida pessoal.
+
+## ADR-032: Ajustes da revisão da Fase 2
+- **Status:** aceita
+- **Contexto:** revisão da Fase 2 (checklist 16.3). Com a fórmula da P6.2, um alimento exato e verificado sem histórico soma 0,70 e nunca chega à faixa "automática" (≥ 0,75) no primeiro uso.
+- **Decisão:**
+  - Termo idêntico a um alias curado (sistema) ou pessoal conta com o peso total de uso (0,3): preferência explícita. Os demais casos seguem a fórmula.
+  - Gramas informados viram medida pessoal só quando a unidade caseira não converteria sem eles, e só depois de a refeição ser gravada.
+  - Aprendizado: escolher um alimento para um termo sem sugestão também cria alias pessoal; trocar o alimento de um item conta como uso.
+  - Dias passados sem snapshot são calculados para exibição, mas não gravados (não se cria histórico que não existiu).
+  - `PUT nutrition/targets/:date/day-type` aceita `null` para voltar ao tipo automático.
+  - Número por extenso só é convertido no início de um item ("queijo meia cura" fica como está).
+  - `foods(source_code, source_ref)` passa a ter índice único; escritas de alias/medida pessoal em transação.
+- **Consequências:** o piso de segurança diário continua prevalecendo sobre a média semanal (ADR-028), agora documentado em teste. Refeição planejada → consumida (`POST meals/:id/log`) entra na Fase 4 e registrará o uso nesse momento.

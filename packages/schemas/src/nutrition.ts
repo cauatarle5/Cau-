@@ -85,7 +85,8 @@ export const targetsResponseSchema = z.object({
 });
 export type TargetsResponse = z.infer<typeof targetsResponseSchema>;
 
-export const dayTypePutSchema = z.object({ dayType: dayTypeSchema });
+/** `null` volta ao tipo automático (derivado do plano). */
+export const dayTypePutSchema = z.object({ dayType: dayTypeSchema.nullable() });
 export const dayParamSchema = z.object({ date: z.iso.date() });
 
 /** Resumo do dia: metas × consumido × planejado (tela Hoje). */

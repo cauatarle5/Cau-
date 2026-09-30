@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { distributeWeek, planDayType, rawDayKcal, type WeekDayPlan } from './day-type';
+import {
+  distributeWeek,
+  planDayType,
+  rawDayKcal,
+  remainingTargets,
+  type WeekDayPlan,
+} from './day-type';
 
 const base = { kcal: 2400, proteinG: 160, fatG: 70, carbsG: 282, fiberG: 34, waterMl: 2800 };
 const day = (
@@ -84,5 +90,32 @@ describe('distributeWeek (P5.8)', () => {
     // Sem ajuste: (1800 − 720 − 630)/4 = 112,5 < 160 → gordura (1800 − 720 − 640)/9 = 48,9 (≥ 48)
     expect(sport?.fatG).toBe(49);
     expect(sport?.carbsG).toBe(160);
+  });
+});
+
+describe('floor vs weekly average (ADR-028)', () => {
+  it('the safety floor wins even if the weekly total ends above 7 × base', () => {
+    const low = { kcal: 1600, proteinG: 150, fatG: 55, carbsG: 128, fiberG: 25, waterMl: 2500 };
+    const week = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((d, i) =>
+      day(d, i < 3 ? 'rest' : 'training'),
+    );
+    const out = distributeWeek({ base: low, week, weightKg: 70, bmrKcal: 1550, sex: 'male' });
+    expect(Math.min(...out.map((d) => d.kcal))).toBeGreaterThanOrEqual(1550);
+    expect(out.reduce((a, d) => a + d.kcal, 0)).toBeGreaterThanOrEqual(7 * 1600);
+  });
+});
+
+describe('remainingTargets', () => {
+  it('subtracts consumed from targets (negative = over)', () => {
+    const t = { kcal: 2000, proteinG: 150, carbsG: 200, fatG: 60, fiberG: 28, waterMl: 3000 };
+    const c = { kcal: 2100, proteinG: 100, carbsG: 250, fatG: 50, fiberG: 10, waterMl: 500 };
+    expect(remainingTargets(t, c)).toEqual({
+      kcal: -100,
+      proteinG: 50,
+      carbsG: -50,
+      fatG: 10,
+      fiberG: 18,
+      waterMl: 2500,
+    });
   });
 });

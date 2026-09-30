@@ -149,3 +149,17 @@ describe('normalization', () => {
     expect(normalizeMealText('1,5 kg de arroz, duas bananas')).toBe('1.5 kg de arroz, 2 bananas');
   });
 });
+
+describe('review fixes', () => {
+  it('number words only at the start of an item', () => {
+    expect(parseMealText('1 fatia de queijo meia cura').map((i) => i.foodQuery)).toEqual([
+      'queijo meia cura',
+    ]);
+    expect(parseMealText('duas bananas e três ovos').map((i) => [i.foodQuery, i.quantity])).toEqual(
+      [
+        ['bananas', 2],
+        ['ovos', 3],
+      ],
+    );
+  });
+});

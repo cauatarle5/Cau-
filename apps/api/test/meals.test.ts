@@ -41,6 +41,8 @@ describe('nutrition parse and meals', () => {
       totals: { kcal: number; proteinG: number };
     }>();
     expect(body.source).toBe('rules');
+    // Alias curado exato → "auto" já no primeiro uso (ADR-032).
+    expect(body.items.map((i) => i.confidence)).toEqual(['auto', 'auto', 'auto']);
     expect(body.items.map((i) => [i.match?.namePt, i.grams])).toEqual([
       ['Arroz, tipo 1, cozido', 200],
       ['Frango, peito, sem pele, grelhado', 150],
@@ -178,6 +180,78 @@ describe('nutrition parse and meals', () => {
       })
     ).json<{ items: ParsedItem[] }>();
     expect(parsed.items[0]?.match?.namePt).toBe('Arroz, integral, cozido');
+  });
+
+  it('saves a personal measure only when the unit would not convert, and only after the meal is saved', async () => {
+    const u = await onboardedUser(ctx.app, today);
+    const search = async (q: string) =>
+      (
+        await u.call({ method: 'GET', url: `/api/v1/foods/search?q=${encodeURIComponent(q)}` })
+      ).json<{
+        items: { id: string; measures: { unitCode: string; scope: string; grams: number }[] }[];
+      }>().items[0];
+    const beans = await search('feijao');
+    // Concha já converte (86 g): gramas informados não viram medida pessoal.
+    await u.call({
+      method: 'POST',
+      url: '/api/v1/meals',
+      payload: {
+        date: today,
+        slot: 'lunch',
+        items: [{ foodId: beans?.id, quantity: 1, unit: 'ladle', grams: 120 }],
+      },
+    });
+    expect((await search('feijao'))?.measures.filter((m) => m.scope === 'user')).toEqual([]);
+
+    // Um item inválido depois impede a gravação de medidas do item anterior.
+    const rice = await search('arroz');
+    const failed = await u.call({
+      method: 'POST',
+      url: '/api/v1/meals',
+      payload: {
+        date: today,
+        slot: 'lunch',
+        items: [
+          { foodId: rice?.id, quantity: 1, unit: 'ladle', grams: 130 },
+          { foodId: rice?.id, quantity: 1, unit: 'can' },
+        ],
+      },
+    });
+    expect(failed.statusCode).toBe(422);
+    expect((await search('arroz'))?.measures.filter((m) => m.scope === 'user')).toEqual([]);
+  });
+
+  it('picking a food for an unmatched term teaches a personal alias', async () => {
+    const u = await onboardedUser(ctx.app, today);
+    const kiwi = (await u.call({ method: 'GET', url: '/api/v1/foods/search?q=kiwi' })).json<{
+      items: { id: string }[];
+    }>().items[0];
+    await u.call({
+      method: 'POST',
+      url: '/api/v1/meals',
+      payload: {
+        date: today,
+        slot: 'lunch',
+        sourceText: '1 fruta verde peluda',
+        items: [
+          {
+            foodId: kiwi?.id,
+            quantity: 76,
+            unit: 'g',
+            query: 'fruta verde peluda',
+            suggestedFoodId: null,
+          },
+        ],
+      },
+    });
+    const parsed = (
+      await u.call({
+        method: 'POST',
+        url: '/api/v1/nutrition/parse',
+        payload: { text: '100g de fruta verde peluda' },
+      })
+    ).json<{ items: ParsedItem[] }>();
+    expect(parsed.items[0]?.match?.id).toBe(kiwi?.id);
   });
 
   it('lists, patches meals and items (snapshot recomputed), deletes items; 404s and validation', async () => {

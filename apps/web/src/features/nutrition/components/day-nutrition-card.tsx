@@ -53,7 +53,11 @@ export function DayNutritionCard({ date }: { date: string }) {
         </span>
       </div>
       <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
-        <KcalRing consumed={s.consumed.kcal} target={t.kcal} />
+        <KcalRing
+          consumed={s.consumed.kcal}
+          target={t.kcal}
+          remaining={s.remaining?.kcal ?? t.kcal}
+        />
         <div className="w-full flex-1">
           <MacroBars
             rows={[

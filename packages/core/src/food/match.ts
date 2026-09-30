@@ -25,6 +25,8 @@ export interface MatchCandidate {
   verified: boolean;
   category: FoodCategory;
   state: FoodState;
+  /** Termo idêntico a um alias curado (sistema) ou pessoal: preferência explícita (ADR-032). */
+  exactAlias?: boolean;
 }
 
 /** Categorias que assumem "cozido" salvo menção a "cru" (P6.2 passo 4). */
@@ -55,7 +57,8 @@ export function matchScore(query: string, c: MatchCandidate): number {
   if (c.state === 'raw' && COOKED_BY_DEFAULT.includes(c.category) && !mentionsRaw(query)) {
     similarity *= RAW_PENALTY;
   }
-  return similarity * 0.6 + usageScore(c.timesUsed) * 0.3 + (c.verified ? 0.1 : 0);
+  const usage = c.exactAlias ? 1 : usageScore(c.timesUsed);
+  return similarity * 0.6 + usage * 0.3 + (c.verified ? 0.1 : 0);
 }
 
 export type MatchConfidence = 'auto' | 'review' | 'choose';

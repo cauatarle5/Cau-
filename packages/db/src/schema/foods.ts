@@ -8,6 +8,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -49,7 +50,8 @@ export const foods = pgTable(
   (t) => [
     index('foods_name_trgm_idx').using('gin', sql`${t.nameNormalized} gin_trgm_ops`),
     index('foods_user_id_idx').on(t.userId),
-    index('foods_source_ref_idx').on(t.sourceCode, t.sourceRef),
+    // Referência única por fonte (seed idempotente); personalizados têm source_ref nulo.
+    uniqueIndex('foods_source_ref_uq').on(t.sourceCode, t.sourceRef),
   ],
 );
 

@@ -59,11 +59,19 @@ export function MacroBars({ rows }: { rows: MacroRow[] }) {
 }
 
 /** Anel de kcal consumidas / meta. */
-export function KcalRing({ consumed, target }: { consumed: number; target: number }) {
+/** Anel de kcal; o restante vem pronto da API (calculado no core). */
+export function KcalRing({
+  consumed,
+  target,
+  remaining,
+}: {
+  consumed: number;
+  target: number;
+  remaining: number;
+}) {
   const r = 42;
   const c = 2 * Math.PI * r;
   const frac = target > 0 ? Math.min(1, consumed / target) : 0;
-  const remaining = Math.round(target - consumed);
   return (
     <div
       className="relative size-32 shrink-0"

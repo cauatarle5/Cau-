@@ -115,6 +115,12 @@ describe('matching (P6.2 step 4)', () => {
     expect(matchScore('banana', { ...raw, category: 'fruits' })).toBeCloseTo(0.7, 6);
   });
 
+  it('an exact curated alias reaches "auto" on first use (ADR-032)', () => {
+    expect(matchScore('arroz', { ...base, exactAlias: true })).toBeCloseTo(1, 6);
+    expect(confidenceBand(matchScore('arroz', { ...base, exactAlias: true }))).toBe('auto');
+    expect(confidenceBand(matchScore('arroz', base))).toBe('review');
+  });
+
   it('confidence bands 0.75 / 0.45', () => {
     expect(confidenceBand(0.8)).toBe('auto');
     expect(confidenceBand(0.75)).toBe('auto');

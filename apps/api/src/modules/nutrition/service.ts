@@ -188,7 +188,8 @@ export function createNutritionService({ profile, body, repo }: NutritionService
           },
           goalId: b.goalId,
         };
-        await repo.upsertSnapshot(userId, row);
+        // Passado sem snapshot: calcula para exibir, sem gravar histórico que não existiu.
+        if (day.date >= today) await repo.upsertSnapshot(userId, row);
         days.push({ ...row });
       }
     }
@@ -209,8 +210,8 @@ export function createNutritionService({ profile, body, repo }: NutritionService
   return {
     targets,
 
-    /** Sobrescreve o tipo do dia (P5.8) e recalcula o dia e o restante da semana. */
-    async setDayType(userId: string, date: string, dayType: DayType, today: string) {
+    /** Sobrescreve o tipo do dia (P5.8) ou volta ao automático (`null`) e recalcula. */
+    async setDayType(userId: string, date: string, dayType: DayType | null, today: string) {
       if (date < today)
         throw validationError([{ field: 'date', message: 'Dias passados não são recalculados' }]);
       const current = await targets(userId, date, date, today);
@@ -218,8 +219,8 @@ export function createNutritionService({ profile, body, repo }: NutritionService
       if (!day) return current;
       await repo.upsertSnapshot(userId, {
         ...day,
-        dayType,
-        dayTypeOverridden: true,
+        dayType: dayType ?? day.dayType,
+        dayTypeOverridden: dayType !== null,
         inputs: { overriddenAt: new Date().toISOString() },
       });
       return targets(userId, date, date, today);

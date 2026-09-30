@@ -109,6 +109,7 @@ export function createFoodsService(repo: FoodsRepository) {
           verified: bundle.food.isVerified,
           category: bundle.food.category,
           state: bundle.food.state,
+          exactAlias: c.exactAlias,
         });
         return [{ bundle, score }];
       })

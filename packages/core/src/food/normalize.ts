@@ -53,9 +53,10 @@ export function normalizeMealText(text: string): string {
   );
   // "meia duzia" → 6
   s = s.replace(/\bmeia duzia\b/g, '6').replace(/\buma duzia\b/g, '12');
-  s = s.replace(/\b([a-z]+)\b/g, (word: string) => {
+  // Número por extenso só no início de um item ("queijo meia cura" continua igual).
+  s = s.replace(/(^|[,;+]\s*|\se\s+)([a-z]+)\b/g, (whole: string, lead: string, word: string) => {
     const n = NUMBER_WORDS[word];
-    return n === undefined ? word : String(n);
+    return n === undefined ? whole : `${lead}${String(n)}`;
   });
   return s.replace(/\s+/g, ' ').trim();
 }

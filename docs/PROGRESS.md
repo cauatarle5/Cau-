@@ -1,7 +1,7 @@
 # PROGRESS: Atlas
 
 ## Fase atual
-**Fase 1. Perfil, objetivos e corpo: concluída.** Próximo: **Fase 2. Nutrição núcleo.**
+**Fase 2. Nutrição núcleo: concluída.** Próximo: **Fase 3. Treino núcleo.**
 
 ## Feito
 ### Fase 0. Fundação
@@ -19,8 +19,21 @@
 - **Revisão (checklist 16.3):** 1 problema alto (PATCH de limitação reaplicava padrões) e 3 médios corrigidos com testes (ADR-022); baixos corrigidos ou registrados em `OPEN_QUESTIONS.md`.
 - **DoD:** onboarding completo leva poucos segundos no fluxo automatizado (bem abaixo de 3 min para uma pessoa, com padrões sugeridos em cada etapa); metas visíveis com explicação dos insumos.
 
+### Fase 2. Nutrição núcleo
+- **Dados:** TACO 4ª ed. (591 itens, arredondamento da tabela impressa, ADR-023/029), 208 aliases e medidas caseiras (ADR-024); seed idempotente.
+- **Core:** normalização de texto, parser por regras (tabela com 69 frases), conversão para gramas (g, kg, ml com densidade, medidas alimento → usuário → genérica), escala e soma de nutrientes preservando nulos, pontuação de correspondência (0,6/0,3/0,1; faixas 0,75/0,45), tipo de dia pelo plano e distribuição semanal P5.8, `computePortion`, `remainingTargets`, `suggestSlot`.
+- **IA (`packages/ai`):** extração estruturada com Anthropic (modelo só por `AI_MODEL_FAST`), nunca nutrientes; fallback para regras sem chave, com erro, recusa ou timeout (ADR-025); `pnpm ai:eval` (20 frases com gabarito, 100% nas regras).
+- **API:** busca ranqueada, alimento personalizado por rótulo, medidas pessoais, `nutrition/parse` (com limite de IA por usuário), refeições e itens com snapshot imutável, aprendizado (uso, alias pessoal, `parser_feedback`), água, resumo do dia, metas por tipo de dia persistidas e sobrescrevíveis (ADR-026/031/032). 64 testes de integração, incluindo o DoD numérico.
+- **Web:** Hoje com anel de kcal, barras de macros (consumido/planejado), tipo do dia e "O que você comeu?" (lista editável com totais em tempo real e confirmação em 1 toque); Nutrição com tipo do dia, refeições, água, busca manual, cadastro rápido e média semanal.
+- **E2E:** DoD em 2,8 s com os valores da TACO (570,5 kcal); recálculo em tempo real; busca, alimento personalizado e água.
+- **Revisão (checklist 16.3):** sem problemas altos; médios e baixos corrigidos com testes (ADR-032).
+- **DoD:** "200g de arroz, 150g de frango e 100g de feijão" registrado em menos de 10 s, valores conferidos contra a TACO.
+
 ## Pendente (para fases seguintes)
-- Metas persistidas e distribuídas por tipo de dia; GET adaptativo: Fases 2 e 6 (ADR-015).
+- GET adaptativo semanal: Fase 6.
+- Receitas, refeições planejadas, `POST meals/:id/log`, modelos de refeição: Fase 4.
+- Leite fluido e itens ausentes na TACO; fallback USDA bloqueado pela rede deste ambiente (OPEN_QUESTIONS).
+- Avaliação do parser com 100 frases e da IA real: Fase 7 (sem `ANTHROPIC_API_KEY` neste ambiente, só as regras foram avaliadas).
 - Preferências de exercício: Fase 3 (ADR-019).
 - Botão flutuante de registro rápido (12.1): entra com os registros que ele aciona.
 - Exportação/exclusão de conta (LGPD) e PWA: Fase 8.
@@ -36,4 +49,4 @@
 - `apps/web/AGENTS.md` e `apps/web/CLAUDE.md` são gerados pelo `next dev`.
 
 ## Próximo passo
-- `/fase 2`: seed TACO + aliases + medidas caseiras, busca, alimento personalizado, parser (IA + regras), registro de refeições, metas por tipo de dia, cartão de nutrição no Hoje, água.
+- `/fase 3`: seed de ~150 exercícios com mapeamento muscular, programas e templates manuais, treino ativo com fantasmas/descanso/pular/substituir, offline com sincronização (`Idempotency-Key`, ADR-027), histórico e métricas (e1RM, tonelagem, volume por músculo, recordes), preferências de exercício (ADR-019).

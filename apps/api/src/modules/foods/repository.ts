@@ -24,6 +24,7 @@ export interface FoodCandidate {
   foodId: string;
   similarity: number;
   timesUsed: number;
+  exactAlias: boolean;
 }
 
 export interface FoodBundle {
@@ -44,22 +45,24 @@ export function createFoodsRepository(db: Database) {
         food_id: string;
         sim: number;
         times_used: number | null;
+        exact: boolean;
       }>(sql`
         with c as (
           select f.id as food_id,
-                 (similarity(f.name_normalized, ${q}) + word_similarity(${q}, f.name_normalized)) / 2 as sim
+                 (similarity(f.name_normalized, ${q}) + word_similarity(${q}, f.name_normalized)) / 2 as sim,
+                 false as exact
           from ${foods} f
           where (f.user_id is null or f.user_id = ${userId})
             and (f.name_normalized % ${q} or ${q} <% f.name_normalized)
           union all
-          select a.food_id, similarity(a.alias_normalized, ${q}) as sim
+          select a.food_id, similarity(a.alias_normalized, ${q}) as sim, a.alias_normalized = ${q} as exact
           from ${foodAliases} a
           join ${foods} f on f.id = a.food_id
           where (a.user_id is null or a.user_id = ${userId})
             and (f.user_id is null or f.user_id = ${userId})
             and a.alias_normalized % ${q}
         )
-        select c.food_id, max(c.sim)::float8 as sim, u.times_used
+        select c.food_id, max(c.sim)::float8 as sim, u.times_used, bool_or(c.exact) as exact
         from c
         left join ${userFoodUsage} u on u.food_id = c.food_id and u.user_id = ${userId}
         group by c.food_id, u.times_used
@@ -70,6 +73,7 @@ export function createFoodsRepository(db: Database) {
         foodId: r.food_id,
         similarity: r.sim,
         timesUsed: r.times_used ?? 0,
+        exactAlias: r.exact,
       }));
     },
 
@@ -133,16 +137,18 @@ export function createFoodsRepository(db: Database) {
       foodId: string,
       m: { unitCode: HouseholdMeasureRow['unitCode']; labelPt: string; grams: number },
     ) {
-      await db
-        .delete(householdMeasures)
-        .where(
-          and(
-            eq(householdMeasures.userId, userId),
-            eq(householdMeasures.foodId, foodId),
-            eq(householdMeasures.unitCode, m.unitCode),
-          ),
-        );
-      await db.insert(householdMeasures).values({ ...m, foodId, userId });
+      await db.transaction(async (tx) => {
+        await tx
+          .delete(householdMeasures)
+          .where(
+            and(
+              eq(householdMeasures.userId, userId),
+              eq(householdMeasures.foodId, foodId),
+              eq(householdMeasures.unitCode, m.unitCode),
+            ),
+          );
+        await tx.insert(householdMeasures).values({ ...m, foodId, userId });
+      });
     },
 
     async recordUsage(userId: string, foodId: string, grams: number, unitCode: string) {
@@ -162,12 +168,14 @@ export function createFoodsRepository(db: Database) {
 
     /** Alias pessoal quando o usuário troca o alimento de um termo (P6.2 passo 8). */
     async addPersonalAlias(userId: string, foodId: string, aliasNormalized: string) {
-      await db
-        .delete(foodAliases)
-        .where(
-          and(eq(foodAliases.userId, userId), eq(foodAliases.aliasNormalized, aliasNormalized)),
-        );
-      await db.insert(foodAliases).values({ userId, foodId, aliasNormalized });
+      await db.transaction(async (tx) => {
+        await tx
+          .delete(foodAliases)
+          .where(
+            and(eq(foodAliases.userId, userId), eq(foodAliases.aliasNormalized, aliasNormalized)),
+          );
+        await tx.insert(foodAliases).values({ userId, foodId, aliasNormalized });
+      });
     },
 
     async addParserFeedback(

@@ -95,3 +95,24 @@ export function distributeWeek(params: {
     };
   });
 }
+
+export interface DayTotals {
+  kcal: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  fiberG: number;
+  waterMl: number;
+}
+
+/** Restante do dia = meta − consumido, por nutriente (negativo = acima da meta). */
+export function remainingTargets(targets: DayTotals, consumed: DayTotals): DayTotals {
+  return {
+    kcal: targets.kcal - consumed.kcal,
+    proteinG: targets.proteinG - consumed.proteinG,
+    carbsG: targets.carbsG - consumed.carbsG,
+    fatG: targets.fatG - consumed.fatG,
+    fiberG: targets.fiberG - consumed.fiberG,
+    waterMl: targets.waterMl - consumed.waterMl,
+  };
+}

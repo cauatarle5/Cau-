@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { addDays, localDate } from '@atlas/core';
+import { and, eq, nutritionTargets, users } from '@atlas/db';
 
 import {
   as,
@@ -233,28 +234,59 @@ describe('day type override (P5.8, ADR-026)', () => {
     expect(bad.statusCode).toBe(400);
   });
 
-  it('never recalculates past days: the stored snapshot wins', async () => {
+  it('never recalculates past days: a stored snapshot wins; past days without one are not persisted', async () => {
     const u = await onboardedUser(ctx.app, today);
     const yesterday = addDays(today, -1);
-    const first = (
-      await u.call({
-        method: 'GET',
-        url: `/api/v1/nutrition/targets?from=${yesterday}&to=${yesterday}`,
-      })
-    ).json<{ days: { kcal: number }[] }>();
-    // Muda o objetivo: hoje muda, ontem não.
+    const [row] = await ctx.handle.db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, u.payload.email));
+    // Snapshot "de ontem" gravado quando ontem era hoje.
+    await ctx.handle.db.insert(nutritionTargets).values({
+      userId: row?.id ?? '',
+      date: yesterday,
+      dayType: 'rest',
+      kcal: 1999,
+      proteinG: 150,
+      carbsG: 200,
+      fatG: 60,
+      fiberG: 28,
+      waterMl: 2800,
+      method: 'formula',
+      inputs: {},
+    });
     await u.call({ method: 'POST', url: '/api/v1/goals', payload: { primaryGoal: 'muscle_gain' } });
     const after = (
       await u.call({
         method: 'GET',
         url: `/api/v1/nutrition/targets?from=${yesterday}&to=${yesterday}`,
       })
-    ).json<{ days: { kcal: number }[] }>();
-    expect(after.days[0]?.kcal).toBe(first.days[0]?.kcal);
-    const todayAfter = (
-      await u.call({ method: 'GET', url: `/api/v1/nutrition/targets?from=${today}&to=${today}` })
-    ).json<{ targets: { kcal: number } }>();
-    // Base passou de −20% para +10%.
-    expect(todayAfter.targets.kcal).toBeGreaterThan(2500);
+    ).json<{ days: { kcal: number; dayType: string }[] }>();
+    expect(after.days[0]).toMatchObject({ kcal: 1999, dayType: 'rest' });
+
+    const older = addDays(today, -10);
+    await u.call({ method: 'GET', url: `/api/v1/nutrition/targets?from=${older}&to=${older}` });
+    const stored = await ctx.handle.db
+      .select()
+      .from(nutritionTargets)
+      .where(and(eq(nutritionTargets.userId, row?.id ?? ''), eq(nutritionTargets.date, older)));
+    expect(stored).toHaveLength(0);
+  });
+
+  it('resets an override back to the automatic day type', async () => {
+    const u = await onboardedUser(ctx.app, today);
+    const tomorrow = addDays(today, 1);
+    const url = `/api/v1/nutrition/targets/${tomorrow}/day-type`;
+    const auto = (
+      await u.call({
+        method: 'GET',
+        url: `/api/v1/nutrition/targets?from=${tomorrow}&to=${tomorrow}`,
+      })
+    ).json<{
+      days: { dayType: string }[];
+    }>().days[0]?.dayType;
+    await u.call({ method: 'PUT', url, payload: { dayType: 'sport' } });
+    const reset = await u.call({ method: 'PUT', url, payload: { dayType: null } });
+    expect(reset.json()).toMatchObject({ days: [{ dayType: auto, dayTypeOverridden: false }] });
   });
 });

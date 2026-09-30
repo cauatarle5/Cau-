@@ -3,6 +3,7 @@ import type { z } from 'zod';
 import {
   emptyNutrients,
   normalizeForSearch,
+  remainingTargets,
   sumNutrients,
   type FoodUnit,
   type Nutrients,
@@ -81,8 +82,6 @@ export function toMealDto({ meal, items }: MealWithItems): MealDto {
   };
 }
 
-const MACROS = ['kcal', 'proteinG', 'carbsG', 'fatG', 'fiberG'] as const;
-
 export function createMealsService(deps: {
   repo: NutritionRepository;
   foods: FoodsService;
@@ -90,57 +89,94 @@ export function createMealsService(deps: {
 }) {
   const { repo, foods, nutrition } = deps;
 
-  /** Resolve um item: gramas e snapshot de nutrientes (histórico imutável, P1.6). */
+  interface PendingMeasure {
+    foodId: string;
+    unitCode: Parameters<FoodsService['addUserMeasure']>[2]['unitCode'];
+    grams: number;
+  }
+
+  /**
+   * Resolve um item: gramas e snapshot de nutrientes (histórico imutável, P1.6). Gramas
+   * informados só viram medida pessoal quando a unidade caseira não converteria sem eles.
+   */
   async function resolveItem(
     userId: string,
     input: ItemInput,
     index: number,
-  ): Promise<NewMealItem> {
+  ): Promise<{ item: NewMealItem; measure: PendingMeasure | null }> {
     const bundle = await foods.bundle(userId, input.foodId);
     const unit: FoodUnit | null = input.unit;
     const portion = computePortion(bundle, input.quantity, unit, input.grams);
     if (!portion.ok) throw unitNotConvertible(index);
-    // Gramas informados para uma medida caseira viram medida pessoal (P6.2 passo 5).
-    if (input.grams && unit && HOUSEHOLD.has(unit)) {
-      await foods.addUserMeasure(userId, input.foodId, {
-        unitCode: unit as Parameters<FoodsService['addUserMeasure']>[2]['unitCode'],
-        labelPt: 'medida pessoal',
-        grams: input.grams / input.quantity,
-      });
-    }
+    const needsMeasure =
+      !!input.grams &&
+      !!unit &&
+      HOUSEHOLD.has(unit) &&
+      !computePortion(bundle, input.quantity, unit).ok;
     return {
-      foodId: input.foodId,
-      recipeId: null,
-      foodName: bundle.food.namePt,
-      quantity: input.quantity,
-      unitCode: unit ?? 'unit',
-      grams: portion.grams,
-      nutrientsSnapshot: portion.nutrients,
-      parseConfidence: input.parseConfidence ?? null,
+      item: {
+        foodId: input.foodId,
+        recipeId: null,
+        foodName: bundle.food.namePt,
+        quantity: input.quantity,
+        unitCode: unit ?? 'unit',
+        grams: portion.grams,
+        nutrientsSnapshot: portion.nutrients,
+        parseConfidence: input.parseConfidence ?? null,
+      },
+      measure:
+        needsMeasure && input.grams
+          ? {
+              foodId: input.foodId,
+              unitCode: unit as PendingMeasure['unitCode'],
+              grams: input.grams / input.quantity,
+            }
+          : null,
     };
   }
 
-  /** Aprendizado (P6.2 passo 8): uso, feedback do parser e alias pessoal quando trocou o alimento. */
+  async function resolveAll(userId: string, inputs: ItemInput[]) {
+    const resolved: { item: NewMealItem; measure: PendingMeasure | null }[] = [];
+    for (const [index, input] of inputs.entries())
+      resolved.push(await resolveItem(userId, input, index));
+    return resolved;
+  }
+
+  /** Medidas pessoais só depois da refeição gravada (P6.2 passo 5). */
+  async function saveMeasures(userId: string, measures: (PendingMeasure | null)[]) {
+    for (const m of measures) {
+      if (m)
+        await foods.addUserMeasure(userId, m.foodId, {
+          unitCode: m.unitCode,
+          labelPt: 'medida pessoal',
+          grams: m.grams,
+        });
+    }
+  }
+
+  /**
+   * Aprendizado (P6.2 passo 8): uso, alias pessoal quando o usuário escolheu outro alimento
+   * para o termo (inclusive quando não havia sugestão) e feedback do parser.
+   */
   async function learn(
     userId: string,
     sourceText: string | null | undefined,
     inputs: ItemInput[],
     resolved: NewMealItem[],
   ) {
-    const corrections = inputs.filter(
-      (i) => i.query && i.suggestedFoodId && i.suggestedFoodId !== i.foodId,
-    );
     for (const item of resolved) {
       if (item.foodId) await foods.recordUsage(userId, item.foodId, item.grams, item.unitCode);
     }
+    const corrections = inputs.filter((i) => i.query && (i.suggestedFoodId ?? null) !== i.foodId);
     for (const c of corrections) {
-      await foods.addPersonalAlias(userId, c.foodId, normalizeForSearch(c.query ?? ''));
+      const alias = normalizeForSearch(c.query ?? '');
+      if (alias) await foods.addPersonalAlias(userId, c.foodId, alias);
     }
     if (sourceText && corrections.length > 0) {
       await foods.addParserFeedback(
         userId,
         sourceText,
-        corrections.map((c) => ({ query: c.query, foodId: c.suggestedFoodId })),
+        corrections.map((c) => ({ query: c.query, foodId: c.suggestedFoodId ?? null })),
         corrections.map((c) => ({ query: c.query, foodId: c.foodId })),
       );
     }
@@ -148,9 +184,8 @@ export function createMealsService(deps: {
 
   return {
     async create(userId: string, input: z.output<typeof mealCreateSchema>): Promise<MealDto> {
-      const resolved: NewMealItem[] = [];
-      for (const [index, item] of input.items.entries())
-        resolved.push(await resolveItem(userId, item, index));
+      const resolvedAll = await resolveAll(userId, input.items);
+      const resolved = resolvedAll.map((r) => r.item);
       const created = await repo.createMeal(
         userId,
         {
@@ -167,6 +202,10 @@ export function createMealsService(deps: {
           sourceText: input.sourceText ?? null,
         },
         resolved,
+      );
+      await saveMeasures(
+        userId,
+        resolvedAll.map((r) => r.measure),
       );
       if (input.status === 'logged') await learn(userId, input.sourceText, input.items, resolved);
       return toMealDto(created);
@@ -195,10 +234,13 @@ export function createMealsService(deps: {
     async addItems(userId: string, mealId: string, items: ItemInput[]): Promise<MealDto> {
       const meal = await repo.getMeal(userId, mealId);
       if (!meal) throw notFound('Refeição');
-      const resolved: NewMealItem[] = [];
-      for (const [index, item] of items.entries())
-        resolved.push(await resolveItem(userId, item, index));
+      const resolvedAll = await resolveAll(userId, items);
+      const resolved = resolvedAll.map((r) => r.item);
       await repo.addItems(mealId, resolved);
+      await saveMeasures(
+        userId,
+        resolvedAll.map((r) => r.measure),
+      );
       if (meal.meal.status === 'logged') await learn(userId, null, items, resolved);
       const full = await repo.getMeal(userId, mealId);
       if (!full) throw notFound('Refeição');
@@ -214,20 +256,26 @@ export function createMealsService(deps: {
       if (!item) throw notFound('Item');
       const foodId = patch.foodId ?? item.foodId;
       if (!foodId) throw notFound('Alimento');
-      const unit = patch.unit !== undefined ? patch.unit : (item.unitCode as FoodUnit);
-      const resolved = await resolveItem(
+      const changedPortion =
+        patch.quantity !== undefined || patch.unit !== undefined || patch.foodId !== undefined;
+      const { item: resolved, measure } = await resolveItem(
         userId,
         {
           foodId,
           quantity: patch.quantity ?? item.quantity,
-          unit,
-          grams:
-            patch.grams ??
-            (patch.quantity || patch.unit !== undefined || patch.foodId ? null : item.grams),
+          unit: patch.unit !== undefined ? patch.unit : (item.unitCode as FoodUnit),
+          // Sem mudança de porção, mantém os gramas do snapshot (e não gera medida pessoal).
+          grams: patch.grams ?? (changedPortion ? null : item.grams),
+          parseConfidence: item.parseConfidence,
         },
         0,
       );
       await repo.updateItem(itemId, resolved);
+      if (patch.grams) await saveMeasures(userId, [measure]);
+      // Trocar o alimento de um item registrado conta como uso (P6.2 passo 8).
+      if (patch.foodId && patch.foodId !== item.foodId) {
+        await foods.recordUsage(userId, patch.foodId, resolved.grams, resolved.unitCode);
+      }
       const full = await repo.getMeal(userId, item.mealId);
       if (!full) throw notFound('Refeição');
       return toMealDto(full);
@@ -266,19 +314,14 @@ export function createMealsService(deps: {
       };
       const consumed = totalsFor('logged');
       const day = t.days[0] ?? null;
-      const remaining = day
-        ? {
-            ...Object.fromEntries(MACROS.map((k) => [k, day[k] - consumed[k]])),
-            waterMl: day.waterMl - waterMl,
-          }
-        : null;
+      const remaining = day ? remainingTargets(day, consumed) : null;
       return {
         date,
         blocked: t.blocked,
         targets: day,
         consumed,
         planned: totalsFor('planned'),
-        remaining: remaining as DaySummary['remaining'],
+        remaining,
         waterMl,
         loggedMeals: dayMeals.filter((m) => m.meal.status === 'logged').length,
       };
