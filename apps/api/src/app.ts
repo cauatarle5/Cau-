@@ -24,12 +24,18 @@ import {
 import { createFoodsRepository, createFoodsService, foodsRoutes } from './modules/foods';
 import { healthRoutes } from './modules/health/index';
 import {
+  createMealPlansRepository,
+  createMealPlansService,
+  mealPlansRoutes,
+} from './modules/meal-plans';
+import {
   createMealsService,
   createNutritionRepository,
   createNutritionService,
   nutritionRoutes,
 } from './modules/nutrition';
 import { createProfileRepository, createProfileService, profileRoutes } from './modules/profile';
+import { createRecipesRepository, createRecipesService, recipesRoutes } from './modules/recipes';
 import {
   createTrainingRepository,
   createTrainingService,
@@ -101,6 +107,16 @@ export async function buildApp({ config, db, parser }: BuildAppOptions): Promise
     foods: foodsService,
     nutrition: nutritionService,
   });
+  const recipesService = createRecipesService({
+    repo: createRecipesRepository(db),
+    foods: foodsService,
+  });
+  const mealPlansService = createMealPlansService({
+    repo: createMealPlansRepository(db),
+    meals: mealsService,
+    foods: foodsService,
+    recipes: recipesService,
+  });
   const exercisesService = createExercisesService({
     repo: createExercisesRepository(db),
     profile: profileService,
@@ -142,6 +158,8 @@ export async function buildApp({ config, db, parser }: BuildAppOptions): Promise
         parser: foodParser,
         aiRateLimitMax: config.aiRateLimitMax,
       });
+      recipesRoutes(v1, { service: recipesService });
+      mealPlansRoutes(v1, { service: mealPlansService, meals: mealsService });
       exercisesRoutes(v1, { service: exercisesService });
       trainingRoutes(v1, { service: trainingService });
       analyticsRoutes(v1, { service: analyticsService });

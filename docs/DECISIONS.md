@@ -243,3 +243,8 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
 - **Decisão:**
   - `meal_templates.items` (jsonb) guarda por item `slot`, alimento, quantidade, unidade e gramas; modelo de refeição tem `slot_hint`, modelo de dia não. `POST meals/copy` (origem = data ou modelo) cria refeições `planned` no destino, recalculando o snapshot com os alimentos atuais.
   - Substituição: candidatos da mesma categoria (histórico do usuário primeiro); mantém a gramagem ou aumenta até proteína ≥ 90% da original (múltiplos de 5 g); kcal não pode passar de +15% da original (reduzir é permitido, pois o objetivo é baixar o excedente); precisa reduzir o nutriente excedente; ordena pela redução.
+
+## ADR-041: Substituição prioriza a mesma família de alimento
+- **Status:** aceita (complementa ADR-040)
+- **Contexto:** a categoria da TACO é ampla (laticínios inclui leite em pó); o motor sugeria leite em pó no lugar de queijo por reduzir mais gordura.
+- **Decisão:** candidatos da mesma família (primeira parte do nome, "Queijo, ricota" → "queijo") vêm primeiro; dentro de cada grupo, maior redução do nutriente excedente; histórico do usuário desempata.

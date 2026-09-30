@@ -60,6 +60,10 @@ export const recipeIngredients = pgTable(
     quantity: doublePrecision('quantity').notNull(),
     unitCode: text('unit_code').notNull(),
     grams: doublePrecision('grams').notNull(),
+    /** Nutrientes do ingrediente no último cálculo (exibição). */
+    nutrientsSnapshot: jsonb('nutrients_snapshot')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     order: smallint('order').notNull(),
   },
   (t) => [index('recipe_ingredients_recipe_idx').on(t.recipeId)],

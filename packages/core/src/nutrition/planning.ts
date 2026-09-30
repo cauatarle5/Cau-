@@ -1,4 +1,5 @@
 import type { FoodCategory } from '../food/match';
+import { normalizeForSearch } from '../food/normalize';
 import { scaleNutrients, sumNutrients, type Nutrients } from '../food/nutrients';
 
 export interface PlanTotals {
@@ -123,10 +124,16 @@ export interface SubstitutionOption {
 
 const ceilTo = (v: number, step: number) => Math.ceil(v / step - 1e-9) * step;
 
+/** Família do alimento: primeira parte do nome ("Queijo, ricota" → "queijo"), ADR-041. */
+export function foodFamily(name: string): string {
+  return normalizeForSearch(name.split(',')[0] ?? '');
+}
+
 /**
  * Motor de substituição (P7.3, ADR-040): mesma categoria; mantém a gramagem ou aumenta até
  * proteína ≥ 90% da original (múltiplos de 5 g); kcal até +15% da original; precisa reduzir
- * o nutriente excedente. Ordena pela redução, histórico do usuário primeiro no empate.
+ * o nutriente excedente. Ordena: mesma família primeiro (ADR-041), depois pela redução e,
+ * no empate, histórico do usuário.
  */
 export function findSubstitutions(
   original: { food: SubstitutionFood; grams: number },
@@ -138,7 +145,8 @@ export function findSubstitutions(
   const origKcal = orig.kcal ?? 0;
   const origProtein = orig.proteinG ?? 0;
   const origValue = orig[nutrient] ?? 0;
-  const out: SubstitutionOption[] = [];
+  const family = foodFamily(original.food.name);
+  const out: (SubstitutionOption & { sameFamily: boolean })[] = [];
   for (const food of candidates) {
     if (food.id === original.food.id || food.category !== original.food.category) continue;
     const p100 = food.per100.proteinG;
@@ -152,14 +160,16 @@ export function findSubstitutions(
     if ((nutrients.kcal ?? 0) > origKcal * 1.15) continue;
     const reduction = origValue - (nutrients[nutrient] ?? 0);
     if (reduction <= 0) continue;
-    out.push({ food, grams, nutrients, reduction });
+    out.push({ food, grams, nutrients, reduction, sameFamily: foodFamily(food.name) === family });
   }
   return out
     .sort(
       (a, b) =>
+        Number(b.sameFamily) - Number(a.sameFamily) ||
         b.reduction - a.reduction ||
         Number(b.food.fromHistory ?? false) - Number(a.food.fromHistory ?? false) ||
         a.food.name.localeCompare(b.food.name),
     )
-    .slice(0, limit);
+    .slice(0, limit)
+    .map(({ sameFamily: _, ...o }) => o);
 }

@@ -53,7 +53,7 @@ const HOUSEHOLD = new Set([
   'large',
 ]);
 
-function snapshotOf(item: MealItemRow): Nutrients {
+export function snapshotOf(item: MealItemRow): Nutrients {
   return { ...emptyNutrients(), ...(item.nutrientsSnapshot as Partial<Nutrients>) };
 }
 
@@ -116,7 +116,8 @@ export function createMealsService(deps: {
     return {
       item: {
         foodId: input.foodId,
-        recipeId: null,
+        // Receita registrada como alimento (ADR-038): guarda a origem.
+        recipeId: bundle.food.sourceCode === 'recipe' ? bundle.food.sourceRef : null,
         foodName: bundle.food.namePt,
         quantity: input.quantity,
         unitCode: unit ?? 'unit',
@@ -210,6 +211,28 @@ export function createMealsService(deps: {
       if (input.status === 'logged') await learn(userId, input.sourceText, input.items, resolved);
       return toMealDto(created);
     },
+
+    /** Planejada → consumida (P7.3): muda o status e conta o uso dos alimentos. */
+    async log(userId: string, id: string, eatenAt?: string): Promise<MealDto> {
+      const current = await repo.getMeal(userId, id);
+      if (!current) throw notFound('Refeição');
+      if (current.meal.status === 'logged') return toMealDto(current);
+      await repo.updateMeal(userId, id, {
+        status: 'logged',
+        eatenAt: eatenAt ? new Date(eatenAt) : new Date(),
+      });
+      for (const item of current.items) {
+        if (item.foodId) await foods.recordUsage(userId, item.foodId, item.grams, item.unitCode);
+      }
+      const full = await repo.getMeal(userId, id);
+      if (!full) throw notFound('Refeição');
+      return toMealDto(full);
+    },
+
+    /** Refeições do dia com itens brutos (para modelos, cópia e alertas). */
+    rawMeals: (userId: string, date: string) => repo.listMeals(userId, date),
+    getRawMeal: (userId: string, id: string) => repo.getMeal(userId, id),
+    getRawItem: (userId: string, itemId: string) => repo.getItem(userId, itemId),
 
     async list(userId: string, date: string): Promise<MealDto[]> {
       return (await repo.listMeals(userId, date)).map(toMealDto);

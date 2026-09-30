@@ -1,6 +1,9 @@
+import { normalizeForSearch } from '@atlas/core';
 import {
   and,
+  desc,
   eq,
+  gte,
   foodAliases,
   foodNutrients,
   foods,
@@ -53,6 +56,7 @@ export function createFoodsRepository(db: Database) {
                  false as exact
           from ${foods} f
           where (f.user_id is null or f.user_id = ${userId})
+            and f.is_active
             and (f.name_normalized % ${q} or ${q} <% f.name_normalized)
           union all
           select a.food_id, similarity(a.alias_normalized, ${q}) as sim, a.alias_normalized = ${q} as exact
@@ -60,6 +64,7 @@ export function createFoodsRepository(db: Database) {
           join ${foods} f on f.id = a.food_id
           where (a.user_id is null or a.user_id = ${userId})
             and (f.user_id is null or f.user_id = ${userId})
+            and f.is_active
             and a.alias_normalized % ${q}
         )
         select c.food_id, max(c.sim)::float8 as sim, u.times_used, bool_or(c.exact) as exact
@@ -176,6 +181,101 @@ export function createFoodsRepository(db: Database) {
           );
         await tx.insert(foodAliases).values({ userId, foodId, aliasNormalized });
       });
+    },
+
+    /** Alimentos ativos de uma categoria (candidatos de substituição, P7.3). */
+    async idsByCategory(userId: string, category: FoodRow['category'], limit: number) {
+      const rows = await db
+        .select({ id: foods.id })
+        .from(foods)
+        .innerJoin(foodNutrients, eq(foodNutrients.foodId, foods.id))
+        .where(and(visible(userId), eq(foods.isActive, true), eq(foods.category, category)))
+        .limit(limit);
+      return rows.map((r) => r.id);
+    },
+
+    /** Uso do usuário, mais frequentes primeiro; `since` limita pelo último uso. */
+    usage(userId: string, opts: { since?: Date; foodIds?: readonly string[] } = {}) {
+      return db
+        .select()
+        .from(userFoodUsage)
+        .innerJoin(foods, eq(foods.id, userFoodUsage.foodId))
+        .where(
+          and(
+            eq(userFoodUsage.userId, userId),
+            eq(foods.isActive, true),
+            ...(opts.since ? [gte(userFoodUsage.lastUsedAt, opts.since)] : []),
+            ...(opts.foodIds ? [inArray(userFoodUsage.foodId, [...opts.foodIds])] : []),
+          ),
+        )
+        .orderBy(desc(userFoodUsage.timesUsed), desc(userFoodUsage.lastUsedAt));
+    },
+
+    /**
+     * Alimento que representa uma receita (ADR-038): cria ou atualiza nome, nutrientes por
+     * 100 g e a medida `portion` do usuário.
+     */
+    async upsertRecipeFood(
+      userId: string,
+      recipeId: string,
+      name: string,
+      nutrients: Omit<typeof foodNutrients.$inferInsert, 'foodId'>,
+      portionGrams: number,
+    ): Promise<string> {
+      return db.transaction(async (tx) => {
+        const values = {
+          namePt: name,
+          nameNormalized: normalizeForSearch(name),
+          category: 'prepared' as const,
+          state: 'ready' as const,
+          isActive: true,
+        };
+        const [existing] = await tx
+          .select({ id: foods.id })
+          .from(foods)
+          .where(
+            and(
+              eq(foods.userId, userId),
+              eq(foods.sourceCode, 'recipe'),
+              eq(foods.sourceRef, recipeId),
+            ),
+          );
+        let id = existing?.id;
+        if (id) {
+          await tx.update(foods).set(values).where(eq(foods.id, id));
+        } else {
+          const [row] = await tx
+            .insert(foods)
+            .values({ ...values, userId, sourceCode: 'recipe', sourceRef: recipeId })
+            .returning({ id: foods.id });
+          if (!row) throw new Error('insert foods returned no row');
+          id = row.id;
+        }
+        const foodId = id;
+        await tx
+          .insert(foodNutrients)
+          .values({ foodId, ...nutrients })
+          .onConflictDoUpdate({ target: foodNutrients.foodId, set: nutrients });
+        await tx
+          .delete(householdMeasures)
+          .where(and(eq(householdMeasures.foodId, foodId), eq(householdMeasures.userId, userId)));
+        await tx.insert(householdMeasures).values({
+          foodId,
+          userId,
+          unitCode: 'portion',
+          labelPt: '1 porção',
+          grams: portionGrams,
+          isDefault: true,
+        });
+        return foodId;
+      });
+    },
+
+    async setActive(userId: string, foodId: string, isActive: boolean) {
+      await db
+        .update(foods)
+        .set({ isActive })
+        .where(and(eq(foods.id, foodId), eq(foods.userId, userId)));
     },
 
     async addParserFeedback(

@@ -99,6 +99,8 @@ describe('findSubstitutions (P7.3, ADR-040)', () => {
     dairy('parm', 'Queijo, parmesão', 453, 35.6, 33.5),
     dairy('prato', 'Queijo, prato', 360, 22.7, 29.1),
     { ...dairy('frango', 'Frango', 159, 32, 2.5), category: 'poultry' as const },
+    // Reduz mais a gordura, mas é de outra família: vem depois dos queijos (ADR-041).
+    dairy('po', 'Leite, de vaca, desnatado, pó', 362, 34.7, 0.9),
   ];
 
   it('keeps protein ≥ 90% (rounding up to 5 g), kcal ≤ +15% and ranks by fat reduction', () => {
@@ -107,9 +109,11 @@ describe('findSubstitutions (P7.3, ADR-040)', () => {
     // Ricota: 90% × 11,3 = 10,17 g → 80,7 g → 85 g: 10,71 P, 6,885 G → reduz 5,715 g.
     // Minas: → 58,4 g → 60 g: 10,44 P, 12,12 G → reduz 0,48 g.
     // Parmesão passa de +15% kcal (226,5 > 189,75); prato aumenta a gordura; frango é de outra categoria.
+    // Leite em pó: 50 g já dá 17,35 P (≥ 90%), 181 kcal, 0,45 G: reduz 12,15 g, mas fica depois dos queijos.
     expect(options.map((o) => [o.food.id, o.grams])).toEqual([
       ['ricota', 85],
       ['minas', 60],
+      ['po', 50],
     ]);
     expect(options[0]?.reduction).toBeCloseTo(5.715, 6);
     expect(options[0]?.nutrients.proteinG).toBeCloseTo(10.71, 6);

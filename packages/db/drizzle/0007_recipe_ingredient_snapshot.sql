@@ -1,0 +1,1 @@
+ALTER TABLE "recipe_ingredients" ADD COLUMN "nutrients_snapshot" jsonb DEFAULT '{}'::jsonb NOT NULL;

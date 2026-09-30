@@ -111,9 +111,10 @@ export function createFoodsService(repo: FoodsRepository) {
           state: bundle.food.state,
           exactAlias: c.exactAlias,
         });
-        return [{ bundle, score }];
+        return [{ bundle, score, timesUsed: c.timesUsed }];
       })
-      .sort((a, b) => b.score - a.score)
+      // Empate (ex.: alias curado × alias pessoal, ambos 1,0): vence o que o usuário usa.
+      .sort((a, b) => b.score - a.score || b.timesUsed - a.timesUsed)
       .slice(0, limit);
   }
 
@@ -219,6 +220,16 @@ export function createFoodsService(repo: FoodsRepository) {
       };
     },
 
+    /** Alimentos ativos da categoria, com nutrientes (candidatos de substituição). */
+    async byCategory(userId: string, category: FoodBundle['food']['category'], limit = 200) {
+      const ids = await repo.idsByCategory(userId, category, limit);
+      return [...(await repo.bundles(userId, ids)).values()];
+    },
+
+    bundles: (userId: string, ids: readonly string[]) => repo.bundles(userId, ids),
+    usage: repo.usage.bind(repo),
+    upsertRecipeFood: repo.upsertRecipeFood.bind(repo),
+    setActive: repo.setActive.bind(repo),
     recordUsage: repo.recordUsage.bind(repo),
     addUserMeasure: repo.addUserMeasure.bind(repo),
     addPersonalAlias: repo.addPersonalAlias.bind(repo),

@@ -9,3 +9,4 @@ export * from './body';
 export * from './nutrition';
 export * from './food';
 export * from './training';
+export * from './recipes';
