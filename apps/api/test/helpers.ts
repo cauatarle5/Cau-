@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
+import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from 'fastify';
 import { inject } from 'vitest';
 
 import { createDb, type DbHandle } from '@atlas/db';
@@ -74,4 +74,33 @@ export async function registerUser(
     cookie: sessionCookie(res),
     user: res.json<{ user: { id: string } }>().user,
   };
+}
+
+/** Atalho: requisição autenticada com o cookie dado. */
+export function as(app: FastifyInstance, cookie: string) {
+  return (opts: InjectOptions) =>
+    app.inject({ ...opts, headers: { ...(opts.headers ?? {}), cookie } });
+}
+
+export const PROFILE_MALE = {
+  sex: 'male',
+  birthDate: '1990-01-01',
+  heightCm: 180,
+  trainingExperience: 'beginner',
+  conditioningLevel: 3,
+  activityLifestyle: 'moderate',
+} as const;
+
+/** Usuário com onboarding completo; peso 80 kg hoje. */
+export async function onboardedUser(app: FastifyInstance, today: string) {
+  const u = await registerUser(app);
+  const call = as(app, u.cookie);
+  await call({ method: 'PUT', url: '/api/v1/profile', payload: PROFILE_MALE });
+  await call({ method: 'POST', url: '/api/v1/goals', payload: { primaryGoal: 'fat_loss' } });
+  await call({
+    method: 'POST',
+    url: '/api/v1/body-measurements',
+    payload: { date: today, weightKg: 80 },
+  });
+  return { ...u, call };
 }

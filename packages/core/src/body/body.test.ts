@@ -73,3 +73,23 @@ describe('isUnusualWeightChange', () => {
     expect(isUnusualWeightChange(prev, { date: '2026-01-01', weightKg: 78 })).toBe(true); // 2,5%
   });
 });
+
+describe('dates', () => {
+  it('localDate uses the user time zone', async () => {
+    const { localDate } = await import('./dates');
+    // 02:30 UTC ainda é o dia anterior em São Paulo (UTC−3).
+    const instant = new Date('2026-09-30T02:30:00Z');
+    expect(localDate(instant, 'America/Sao_Paulo')).toBe('2026-09-29');
+    expect(localDate(instant, 'UTC')).toBe('2026-09-30');
+  });
+
+  it('addDays and dateRange cross month boundaries', async () => {
+    const { addDays, dateRange } = await import('./dates');
+    expect(addDays('2026-02-27', 2)).toBe('2026-03-01');
+    expect(dateRange('2026-12-30', '2027-01-01')).toEqual([
+      '2026-12-30',
+      '2026-12-31',
+      '2027-01-01',
+    ]);
+  });
+});

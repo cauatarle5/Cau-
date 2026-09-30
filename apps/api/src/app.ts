@@ -13,7 +13,10 @@ import type { Database } from '@atlas/db';
 
 import type { AppConfig } from './config';
 import { authRoutes, createAuthRepository, createAuthService } from './modules/auth/index';
+import { bodyRoutes, createBodyRepository, createBodyService } from './modules/body';
 import { healthRoutes } from './modules/health/index';
+import { createNutritionService, nutritionRoutes } from './modules/nutrition';
+import { createProfileRepository, createProfileService, profileRoutes } from './modules/profile';
 import { errorsPlugin } from './plugins/errors';
 import { securityPlugin } from './plugins/security';
 
@@ -59,6 +62,12 @@ export async function buildApp({ config, db }: BuildAppOptions): Promise<Fastify
   }
 
   const authService = createAuthService(createAuthRepository(db));
+  const bodyService = createBodyService(createBodyRepository(db));
+  const profileService = createProfileService({
+    repo: createProfileRepository(db),
+    hasWeighIn: (userId) => bodyService.hasWeighIn(userId),
+  });
+  const nutritionService = createNutritionService({ profile: profileService, body: bodyService });
 
   await app.register(
     (v1, _opts, done) => {
@@ -68,6 +77,9 @@ export async function buildApp({ config, db }: BuildAppOptions): Promise<Fastify
         cookieSecure: config.cookieSecure,
         rateLimitMax: config.authRateLimitMax,
       });
+      profileRoutes(v1, { service: profileService, nutrition: nutritionService });
+      bodyRoutes(v1, { service: bodyService });
+      nutritionRoutes(v1, { service: nutritionService });
       done();
     },
     { prefix: '/api/v1' },
