@@ -122,3 +122,40 @@ describe('matching (P6.2 step 4)', () => {
     expect(confidenceBand(0.44)).toBe('choose');
   });
 });
+
+describe('computePortion and suggestSlot', () => {
+  it('computes grams and nutrients, with a grams override', async () => {
+    const { computePortion } = await import('./portion');
+    const food = {
+      defaultUnit: 'g' as const,
+      densityGPerMl: null,
+      per100: { ...emptyNutrients(), kcal: 76, proteinG: 4.8 },
+    };
+    const ladle: MeasureOption[] = [
+      { unitCode: 'ladle', grams: 86, isDefault: false, scope: 'food' },
+    ];
+    expect(computePortion(food, ladle, 1, 'ladle')).toMatchObject({
+      ok: true,
+      grams: 86,
+      nutrients: { kcal: expect.closeTo(65.36, 6) as number },
+    });
+    expect(computePortion(food, [], 1, 'ladle')).toEqual({
+      ok: false,
+      code: 'UNIT_NOT_CONVERTIBLE',
+    });
+    expect(computePortion(food, [], 1, 'ladle', 120)).toMatchObject({ ok: true, grams: 120 });
+  });
+
+  it.each([
+    [7, 'breakfast'],
+    [11, 'morning_snack'],
+    [13, 'lunch'],
+    [16, 'afternoon_snack'],
+    [20, 'dinner'],
+    [23, 'supper'],
+    [2, 'supper'],
+  ])('hour %d → %s', async (hour, slot) => {
+    const { suggestSlot } = await import('./slot');
+    expect(suggestSlot(hour)).toBe(slot);
+  });
+});

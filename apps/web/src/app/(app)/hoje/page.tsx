@@ -1,7 +1,7 @@
 'use client';
 
 import { PageHeader } from '@/components/empty-state';
-import { TargetsCard } from '@/features/nutrition/components/targets-card';
+import { DayNutritionCard } from '@/features/nutrition/components/day-nutrition-card';
 import { useToday } from '@/lib/use-today';
 
 export default function TodayPage() {
@@ -9,7 +9,9 @@ export default function TodayPage() {
   return (
     <>
       <PageHeader title="Hoje" subtitle="O que eu preciso fazer hoje?" />
-      <TargetsCard date={today} explain={false} />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <DayNutritionCard date={today} />
+      </div>
     </>
   );
 }

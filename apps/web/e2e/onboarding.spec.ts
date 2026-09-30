@@ -20,7 +20,7 @@ test('onboarding completo mostra metas com explicação; logout e login', async 
 
   await page.getByRole('button', { name: 'Ir para Hoje' }).click();
   await expect(page).toHaveURL(/\/hoje$/);
-  await expect(page.getByText('Metas do dia')).toBeVisible();
+  await expect(page.getByText('Nutrição do dia')).toBeVisible();
 
   // Navegação inferior (mobile) e sessão sobrevivendo ao reload.
   await page
@@ -29,7 +29,7 @@ test('onboarding completo mostra metas com explicação; logout e login', async 
     .click();
   await expect(page.getByRole('heading', { name: 'Nutrição', level: 1 })).toBeVisible();
   await page.reload();
-  await expect(page.getByText('Metas do dia')).toBeVisible();
+  await expect(page.getByText('Média semanal')).toBeVisible();
 
   await page.getByRole('link', { name: 'Perfil' }).click();
   await expect(page.getByText(email)).toBeVisible();

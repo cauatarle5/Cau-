@@ -78,6 +78,7 @@ export const foodSchema = z.object({
   isCustom: z.boolean(),
   isVerified: z.boolean(),
   defaultUnit: z.enum(['g', 'ml']),
+  densityGPerMl: z.number().nullable(),
   per100: nutrientsSchema,
   measures: z.array(measureSchema),
 });

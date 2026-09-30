@@ -4,10 +4,9 @@ import {
   confidenceBand,
   emptyNutrients,
   matchScore,
+  computePortion as corePortion,
   normalizeForSearch,
-  scaleNutrients,
   sumNutrients,
-  toGrams,
   type FoodUnit,
   type MeasureOption,
   type Nutrients,
@@ -61,6 +60,7 @@ export function toFoodDto(bundle: FoodBundle): FoodDto {
     isCustom: food.userId !== null,
     isVerified: food.isVerified,
     defaultUnit: food.defaultUnit,
+    densityGPerMl: food.densityGPerMl,
     per100: per100(bundle),
     measures: bundle.measures.map((m) => ({
       unitCode: m.unitCode,
@@ -72,29 +72,20 @@ export function toFoodDto(bundle: FoodBundle): FoodDto {
   };
 }
 
-/** Converte a quantidade e calcula o snapshot de nutrientes (P6.2 passos 5–6). */
+/** Converte a quantidade e calcula o snapshot de nutrientes (P6.2 passos 5–6), via core. */
 export function computePortion(
   bundle: FoodBundle,
   quantity: number,
   unit: FoodUnit | null,
   gramsOverride?: number | null,
 ) {
-  if (gramsOverride) {
-    return {
-      ok: true as const,
-      grams: gramsOverride,
-      densityAssumed: false,
-      nutrients: scaleNutrients(per100(bundle), gramsOverride),
-    };
-  }
-  const r = toGrams(quantity, unit, bundle.food, measureOptions(bundle));
-  if (!r.ok) return { ok: false as const };
-  return {
-    ok: true as const,
-    grams: r.grams,
-    densityAssumed: r.densityAssumed,
-    nutrients: scaleNutrients(per100(bundle), r.grams),
-  };
+  return corePortion(
+    { ...bundle.food, per100: per100(bundle) },
+    measureOptions(bundle),
+    quantity,
+    unit,
+    gramsOverride,
+  );
 }
 
 const CANDIDATE_LIMIT = 40;

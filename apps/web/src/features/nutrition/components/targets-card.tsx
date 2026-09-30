@@ -108,9 +108,11 @@ function Explanation({ data }: { data: NonNullable<TargetsResponse['breakdown']>
 export function TargetsView({
   data,
   explain = true,
+  title = 'Média semanal',
 }: {
   data: TargetsResponse;
   explain?: boolean;
+  title?: string;
 }) {
   if (data.blocked === 'CLINICAL_CONDITION') {
     return (
@@ -144,13 +146,18 @@ export function TargetsView({
   return (
     <Card className="space-y-4">
       <div className="flex items-baseline justify-between gap-2">
-        <CardTitle>Metas do dia</CardTitle>
+        <div>
+          <CardTitle>{title}</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Dias de treino, esporte e descanso variam em torno desta média.
+          </p>
+        </div>
         <p className="text-3xl font-semibold tabular-nums">
           {formatNumber(t.kcal)}
           <span className="ml-1 text-sm font-normal text-muted-foreground">kcal</span>
         </p>
       </div>
-      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <Macro label="Proteína" value={t.proteinG} unit="g" />
         <Macro label="Carboidrato" value={t.carbsG} unit="g" />
         <Macro label="Gordura" value={t.fatG} unit="g" />
