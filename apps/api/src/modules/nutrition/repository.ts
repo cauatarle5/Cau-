@@ -98,6 +98,16 @@ export function createNutritionRepository(db: Database) {
       return row;
     },
 
+    /** Planejada → consumida só se ainda planejada (idempotente sob concorrência). */
+    async markLogged(userId: string, id: string, eatenAt: Date): Promise<boolean> {
+      const rows = await db
+        .update(meals)
+        .set({ status: 'logged', eatenAt })
+        .where(and(activeMeal(userId), eq(meals.id, id), eq(meals.status, 'planned')))
+        .returning({ id: meals.id });
+      return rows.length > 0;
+    },
+
     async addItems(mealId: string, items: readonly NewMealItem[]) {
       await db.insert(mealItems).values(items.map((i) => ({ ...i, mealId })));
     },

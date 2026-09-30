@@ -3,6 +3,8 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
 import {
+  complementListSchema,
+  complementRequestSchema,
   dayPlanSchema,
   idParamSchema,
   mealCopySchema,
@@ -128,6 +130,22 @@ export function mealPlansRoutes(
       },
     },
     (req) => service.substitutions(authed(req).userId, req.body.itemId, req.body.nutrient),
+  );
+
+  r.post(
+    '/nutrition/complements',
+    {
+      ...base,
+      schema: {
+        tags: ['nutrition'],
+        body: complementRequestSchema,
+        response: { 200: complementListSchema, ...errors },
+      },
+    },
+    (req) => {
+      const { userId, today } = authed(req);
+      return service.complements(userId, req.body.date, today, req.body.nutrient);
+    },
   );
 
   r.post(

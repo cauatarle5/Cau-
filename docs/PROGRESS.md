@@ -1,7 +1,7 @@
 # PROGRESS: Atlas
 
 ## Fase atual
-**Fase 3. Treino núcleo: concluída.** Próximo: **Fase 4. Receitas e planejamento alimentar.**
+**Fase 4. Receitas e planejamento alimentar: concluída.** Próximo: **Fase 5. Periodização, esportes e recuperação.**
 
 ## Feito
 ### Fase 0. Fundação
@@ -38,9 +38,19 @@
 - **Revisão (checklist 16.3):** 1 problema alto (fila perdia operações enfileiradas durante um envio) e 6 médios corrigidos com testes (ADR-037); baixos corrigidos ou registrados em `OPEN_QUESTIONS.md`.
 - **DoD:** treino completo registrado no celular sem rede e sincronizado depois (`source = offline_sync`); progresso por exercício visível.
 
+### Fase 4. Receitas e planejamento alimentar
+- **Core:** nutrição de receita (total, porção, 100 g pelo peso pronto ou cru), alertas do planejamento (excesso > 10% em gordura/kcal/carboidrato apontando o item; proteína < 85%, fibra < 70%), motor de substituição (mesma família primeiro, proteína ≥ 90%, kcal ≤ +15%), complementos, restante previsto, solver de sugestão por LP (`javascript-lp-solver`, porções práticas) e tamanhos do pool. 178 testes no core.
+- **DB:** `recipes`, `recipe_ingredients`, `recipe_nutrition_cache`, `meal_templates`, `foods.is_active` (migrations 0006–0007, aditivas).
+- **API:** receitas (CRUD, duplicar, exclusão lógica; receita vira alimento com medida `porção`, ADR-038; cascata para receitas aninhadas), `POST meals/:id/log`, `POST meals/copy` (dia ou modelo), `meal-templates` (refeição ou dia), `nutrition/day-plan`, `nutrition/substitutions`, `nutrition/complements`, `nutrition/suggest-meal` (ADR-038 a 042). 83 testes de integração.
+- **Web:** Planejar dia com restante recalculado a cada tecla (inclui rascunhos), barras em três camadas, alerta no item com trocas aplicáveis, registrar planejada, copiar dia, salvar/aplicar modelo, "O que comer?" e complementos; Receitas por texto (mesmo parser) com prévia total/porção/100 g, favoritar, duplicar, excluir com confirmação e registrar 1 porção.
+- **E2E:** DoD (restante muda ao digitar; 300 g de muçarela passa a gordura → troca por 485 g de ricota → alerta some → registrar) e receita por texto registrada por porção (223 kcal).
+- **Revisão (checklist 16.3):** sem problemas altos; 6 médios e a maior parte dos baixos corrigidos com testes (ADR-042).
+- **Correção extra:** empate na busca entre alias curado e alias pessoal agora favorece o alimento que o usuário usa (bug latente da Fase 2).
+- **DoD:** planejar o dia inteiro, ver o restante mudar em tempo real e receber sugestão de ajuste ao ultrapassar a gordura.
+
 ## Pendente (para fases seguintes)
 - GET adaptativo semanal: Fase 6.
-- Receitas, refeições planejadas, `POST meals/:id/log`, modelos de refeição: Fase 4.
+- Plano semanal e lista de compras (Parte 15); IA redigindo sugestões: Fase 7 (números sempre do solver).
 - Leite fluido e itens ausentes na TACO; fallback USDA bloqueado pela rede deste ambiente (OPEN_QUESTIONS).
 - Avaliação do parser com 100 frases e da IA real: Fase 7 (sem `ANTHROPIC_API_KEY` neste ambiente, só as regras foram avaliadas).
 - Mesociclos, agenda (`planned_workouts`), progressão dupla nas metas, registro de dor e adaptação por prontidão: Fase 5 (ADR-035).
@@ -61,4 +71,4 @@
 - `apps/web/AGENTS.md` e `apps/web/CLAUDE.md` são gerados pelo `next dev`.
 
 ## Próximo passo
-- `/fase 4`: receitas e planejamento alimentar (receitas, refeições planejadas, modelos de refeição, `POST meals/:id/log`), conforme `docs/ROADMAP.md`.
+- `/fase 5`: periodização, esportes e recuperação (gerador de programa por regras, mesociclos, agenda, atividades, check-in, ACWR, prontidão, adaptação do treino do dia, progressão dupla, registro de dor), conforme `docs/ROADMAP.md`.

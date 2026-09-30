@@ -19,3 +19,8 @@ export function parseDecimal(text: string): number | null {
   if (!/^\d+(\.\d+)?$/.test(t)) return null;
   return Number(t);
 }
+
+/** Número para campo editável: sem separador de milhar, para `parseDecimal` ler de volta. */
+export function formatInputNumber(value: number, digits = 2): string {
+  return value.toLocaleString('pt-BR', { maximumFractionDigits: digits, useGrouping: false });
+}

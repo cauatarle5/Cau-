@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { addDays, localDate } from '@atlas/core';
+import { and, eq, userFoodUsage } from '@atlas/db';
 
 import { as, createTestApp, onboardedUser, registerUser, type TestContext } from './helpers';
 
@@ -405,5 +406,144 @@ describe('recipes and day planning', () => {
     expect(
       (await u.call({ method: 'DELETE', url: `/api/v1/meal-templates/${mealTpl.id}` })).statusCode,
     ).toBe(204);
+  });
+
+  it('nested recipes recalculate in cascade; cycles, inactive and foreign foods are rejected', async () => {
+    const u = await registerUser(ctx.app);
+    const call = as(ctx.app, u.cookie);
+    const a = (
+      await call({
+        method: 'POST',
+        url: '/api/v1/recipes',
+        payload: {
+          name: 'Base de frango',
+          ingredients: [{ foodId: chicken, quantity: 200, unit: 'g' }],
+        },
+      })
+    ).json<Recipe>();
+    const b = (
+      await call({
+        method: 'POST',
+        url: '/api/v1/recipes',
+        payload: {
+          name: 'Marmita',
+          ingredients: [
+            { foodId: a.foodId, quantity: 100, unit: 'g' },
+            { foodId: rice, quantity: 100, unit: 'g' },
+          ],
+        },
+      })
+    ).json<Recipe>();
+    // 100 g da base (159 kcal/100 g) + 100 g de arroz (128) = 287 kcal.
+    expect(b.nutrition.total.kcal).toBeCloseTo(287, 6);
+
+    // A base passa a ter arroz: 200 g frango + 200 g arroz = 574 kcal em 400 g → 143,5/100 g.
+    await call({
+      method: 'PATCH',
+      url: `/api/v1/recipes/${a.id}`,
+      payload: {
+        ingredients: [
+          { foodId: chicken, quantity: 200, unit: 'g' },
+          { foodId: rice, quantity: 200, unit: 'g' },
+        ],
+      },
+    });
+    const b2 = (await call({ method: 'GET', url: `/api/v1/recipes/${b.id}` })).json<Recipe>();
+    expect(b2.nutrition.total.kcal).toBeCloseTo(143.5 + 128, 6);
+
+    const cycle = await call({
+      method: 'PATCH',
+      url: `/api/v1/recipes/${a.id}`,
+      payload: { ingredients: [{ foodId: b.foodId, quantity: 50, unit: 'g' }] },
+    });
+    expect(cycle.statusCode).toBe(400);
+
+    // Ingrediente sem unidade usa a medida padrão, como nas refeições.
+    const egg = await foodId(call, 'ovo cozido', 'Ovo, de galinha, inteiro, cozido/10minutos');
+    const withEgg = await call({
+      method: 'POST',
+      url: '/api/v1/recipes',
+      payload: { name: 'Ovos', ingredients: [{ foodId: egg, quantity: 2, unit: null }] },
+    });
+    expect(withEgg.json<Recipe>().ingredients[0]).toMatchObject({ unitCode: 'unit' });
+
+    // Alimento de receita excluída e alimento personalizado de outra pessoa: 404.
+    await call({ method: 'DELETE', url: `/api/v1/recipes/${b.id}` });
+    const deleted = await call({
+      method: 'POST',
+      url: '/api/v1/recipes',
+      payload: { name: 'X', ingredients: [{ foodId: b.foodId, quantity: 100, unit: 'g' }] },
+    });
+    expect(deleted.statusCode).toBe(404);
+    expect(deleted.json<{ code: string }>().code).toBe('FOOD_NOT_FOUND');
+    const other = await registerUser(ctx.app);
+    const callB = as(ctx.app, other.cookie);
+    const foreign = await callB({
+      method: 'POST',
+      url: '/api/v1/recipes',
+      payload: { name: 'Y', ingredients: [{ foodId: a.foodId, quantity: 100, unit: 'g' }] },
+    });
+    expect(foreign.statusCode).toBe(404);
+  });
+
+  it('planned swaps are not "eaten"; logging twice counts usage once; complements cover the gap', async () => {
+    const u = await onboardedUser(ctx.app, today);
+    const ricotta = await foodId(u.call, 'ricota', 'Queijo, ricota');
+    const planned = (
+      await u.call({
+        method: 'POST',
+        url: '/api/v1/meals',
+        payload: {
+          date: today,
+          slot: 'breakfast',
+          status: 'planned',
+          items: [{ foodId: mozzarella, quantity: 100, unit: 'g' }],
+        },
+      })
+    ).json<Meal>();
+    await u.call({
+      method: 'PATCH',
+      url: `/api/v1/meal-items/${planned.items[0]?.id ?? ''}`,
+      payload: { foodId: ricotta, quantity: 150, unit: 'g' },
+    });
+    const usage = () =>
+      ctx.handle.db
+        .select()
+        .from(userFoodUsage)
+        .where(and(eq(userFoodUsage.userId, u.user.id), eq(userFoodUsage.foodId, ricotta)));
+    expect(await usage()).toHaveLength(0);
+
+    const [l1, l2] = await Promise.all([
+      u.call({ method: 'POST', url: `/api/v1/meals/${planned.id}/log`, payload: {} }),
+      u.call({ method: 'POST', url: `/api/v1/meals/${planned.id}/log`, payload: {} }),
+    ]);
+    expect([l1.statusCode, l2.statusCode]).toEqual([200, 200]);
+    expect((await usage())[0]?.timesUsed).toBe(1);
+
+    // Proteína prevista abaixo de 85%: complementos com o que falta.
+    const plan = (
+      await u.call({ method: 'GET', url: `/api/v1/nutrition/day-plan?date=${today}` })
+    ).json<DayPlan>();
+    const low = plan.alerts.find((x) => x.kind === 'low' && x.nutrient === 'proteinG') as
+      { missing: number } | undefined;
+    expect(low).toBeDefined();
+    const comp = await u.call({
+      method: 'POST',
+      url: '/api/v1/nutrition/complements',
+      payload: { date: today, nutrient: 'proteinG' },
+    });
+    expect(comp.statusCode).toBe(200);
+    const body = comp.json<{
+      missing: number;
+      items: { food: { namePt: string }; grams: number; nutrients: N }[];
+    }>();
+    expect(body.missing).toBeCloseTo(low?.missing ?? 0, 6);
+    expect(body.items.length).toBeGreaterThan(0);
+    // A ricota (já comida) vem primeiro; cada opção tem ≥ 10 g de proteína por 100 g e até 300 g.
+    expect(body.items[0]?.food.namePt).toBe('Queijo, ricota');
+    for (const i of body.items) {
+      expect(i.grams).toBeLessThanOrEqual(300);
+      expect((i.nutrients.proteinG ?? 0) / i.grams).toBeGreaterThanOrEqual(0.1 - 1e-9);
+    }
   });
 });

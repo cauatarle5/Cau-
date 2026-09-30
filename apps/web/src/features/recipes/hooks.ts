@@ -19,6 +19,7 @@ export function useRecipeMutation<T>(fn: (arg: T) => Promise<unknown>) {
         qc.invalidateQueries({ queryKey: ['foods'] }),
         qc.invalidateQueries({ queryKey: ['meals'] }),
         qc.invalidateQueries({ queryKey: ['nutrition'] }),
+        qc.invalidateQueries({ queryKey: ['planning'] }),
       ]),
   });
 }

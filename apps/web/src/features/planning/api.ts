@@ -1,5 +1,6 @@
 import { apiRequest } from '@/lib/api';
 import {
+  complementListSchema,
   dayPlanSchema,
   mealListResponseSchema,
   mealSchema,
@@ -33,6 +34,11 @@ export const planningApi = {
     apiRequest('/nutrition/substitutions', substitutionListSchema, {
       method: 'POST',
       body: { itemId, nutrient },
+    }),
+  complements: (date: string, nutrient: 'proteinG' | 'fiberG') =>
+    apiRequest('/nutrition/complements', complementListSchema, {
+      method: 'POST',
+      body: { date, nutrient },
     }),
   suggest: (date: string) =>
     apiRequest('/nutrition/suggest-meal', suggestMealSchema, { method: 'POST', body: { date } }),

@@ -8,7 +8,7 @@ import { Card, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useFoodSearch } from '@/features/nutrition/hooks/use-nutrition';
 import { SLOT_LABELS } from '@/features/nutrition/labels';
-import { formatNumber, parseDecimal } from '@/lib/format';
+import { formatInputNumber, formatNumber, parseDecimal } from '@/lib/format';
 import type { PlanningAlert } from '@atlas/core';
 import type { FoodDto, MealDto, MealSlot } from '@atlas/schemas';
 
@@ -44,7 +44,7 @@ function GramsInput({
         aria-label={label}
         inputMode="decimal"
         className="h-9 w-20 text-right"
-        value={text ?? formatNumber(grams, 1)}
+        value={text ?? formatInputNumber(grams, 1)}
         onChange={(e) => {
           setText(e.target.value);
           const g = parseDecimal(e.target.value);
@@ -65,8 +65,9 @@ function ItemAlert({ alert, itemId }: { alert: OverAlert; itemId: string }) {
   const unit = alert.nutrient === 'kcal' ? 'kcal' : 'g';
   return (
     <div
-      className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-2 text-sm text-amber-950"
-      role="alert"
+      className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-2 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100"
+      role="status"
+      data-testid="item-alert"
     >
       <p className="flex items-start gap-1.5">
         <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
@@ -137,7 +138,7 @@ export function PlanSlot({
   const draftAlert = alertFor(draftId);
 
   return (
-    <Card className="space-y-3 p-4" aria-label={label}>
+    <Card className="space-y-3 p-4" role="region" aria-label={label}>
       <div className="flex items-center justify-between gap-2">
         <CardTitle className="text-base">{label}</CardTitle>
         {planned && planned.items.length > 0 ? (
@@ -177,9 +178,15 @@ export function PlanSlot({
                       onCommit={() => {
                         const g = overrides.get(i.id);
                         if (g !== undefined && g !== i.grams) {
-                          void update.mutateAsync({ itemId: i.id, grams: g }).then(() => {
-                            onOverride(i.id, null);
-                          });
+                          update.mutate(
+                            { itemId: i.id, grams: g },
+                            {
+                              // Falhou: volta ao valor salvo para a previsão não mentir.
+                              onSettled: () => {
+                                onOverride(i.id, null);
+                              },
+                            },
+                          );
                         }
                       }}
                     />
@@ -192,6 +199,11 @@ export function PlanSlot({
         )}
       </ul>
 
+      {update.isError || save.isError || log.isError ? (
+        <p role="alert" className="text-sm text-destructive">
+          Não foi possível salvar. Tente de novo.
+        </p>
+      ) : null}
       {draft ? (
         <div className="space-y-2 rounded-lg border border-dashed border-border p-2">
           <div className="flex items-center gap-2 text-sm">

@@ -190,6 +190,7 @@ export function createFoodsRepository(db: Database) {
         .from(foods)
         .innerJoin(foodNutrients, eq(foodNutrients.foodId, foods.id))
         .where(and(visible(userId), eq(foods.isActive, true), eq(foods.category, category)))
+        .orderBy(desc(foods.isVerified), foods.namePt)
         .limit(limit);
       return rows.map((r) => r.id);
     },

@@ -37,9 +37,13 @@ export function RecipeForm({ onDone }: { onDone: () => void }) {
   const parse = useParseMeal();
   const create = useRecipeMutation(recipesApi.create);
 
-  const servingsN = parseDecimal(servings) ?? 1;
-  const cookedN = parseDecimal(cooked);
-  const preview = ingredients.length > 0 ? recipeNutrition(ingredients, servingsN, cookedN) : null;
+  // Porções e peso pronto inválidos bloqueiam salvar (a API exige porções ≥ 0,5).
+  const servingsN = parseDecimal(servings);
+  const servingsOk = servingsN !== null && servingsN >= 0.5 && servingsN <= 100;
+  const cookedN = cooked.trim() ? parseDecimal(cooked) : null;
+  const cookedOk = !cooked.trim() || (cookedN !== null && cookedN > 0);
+  const preview =
+    ingredients.length > 0 ? recipeNutrition(ingredients, servingsN ?? 1, cookedN) : null;
 
   const addFromText = async () => {
     const res = await parse.mutateAsync(text);
@@ -69,7 +73,7 @@ export function RecipeForm({ onDone }: { onDone: () => void }) {
     try {
       await create.mutateAsync({
         name,
-        servings: servingsN,
+        servings: servingsN ?? 1,
         cookedWeightG: cookedN,
         ingredients: ingredients.map((i) => ({
           foodId: i.foodId,
@@ -107,6 +111,7 @@ export function RecipeForm({ onDone }: { onDone: () => void }) {
           <Label htmlFor="recipe-servings">Porções</Label>
           <Input
             id="recipe-servings"
+            aria-invalid={!servingsOk}
             inputMode="decimal"
             value={servings}
             onChange={(e) => {
@@ -199,7 +204,9 @@ export function RecipeForm({ onDone }: { onDone: () => void }) {
       ) : null}
       <div className="flex gap-2">
         <Button
-          disabled={!name.trim() || ingredients.length === 0 || create.isPending}
+          disabled={
+            !name.trim() || ingredients.length === 0 || !servingsOk || !cookedOk || create.isPending
+          }
           onClick={() => void save()}
         >
           Salvar receita

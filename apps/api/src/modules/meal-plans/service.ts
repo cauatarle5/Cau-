@@ -2,8 +2,11 @@ import type { z } from 'zod';
 
 import {
   addDays,
+  complementSuggestions,
   findSubstitutions,
+  plannedRemaining,
   planningAlerts,
+  poolSizing,
   scaleNutrients,
   suggestMeal,
   type FoodUnit,
@@ -63,8 +66,18 @@ export function createMealPlansService(deps: {
 
   /** Cria refeições planejadas no destino, uma por slot, com os gramas da origem. */
   async function plan(userId: string, date: string, items: readonly TemplateItem[]) {
+    // Alimentos de receitas excluídas (inativos) ficam de fora da cópia (ADR-038).
+    const bundles = await foods.bundles(userId, [...new Set(items.map((i) => i.foodId))]);
     const bySlot = new Map<TemplateItem['slot'], TemplateItem[]>();
-    for (const i of items) bySlot.set(i.slot, [...(bySlot.get(i.slot) ?? []), i]);
+    for (const i of items) {
+      if (!bundles.get(i.foodId)?.food.isActive) continue;
+      bySlot.set(i.slot, [...(bySlot.get(i.slot) ?? []), i]);
+    }
+    if (bySlot.size === 0) {
+      throw validationError([
+        { field: 'fromDate', message: 'Nenhum alimento disponível para copiar' },
+      ]);
+    }
     const created: MealDto[] = [];
     for (const [slot, list] of bySlot) {
       created.push(
@@ -101,6 +114,23 @@ export function createMealPlansService(deps: {
           : [],
       ),
     );
+  }
+
+  /** Resumo do dia + alertas do planejamento (core). */
+  async function dayPlan(userId: string, date: string, today: string): Promise<DayPlanDto> {
+    const [summary, raw] = await Promise.all([
+      meals.summary(userId, date, today),
+      meals.rawMeals(userId, date),
+    ]);
+    const planned = raw
+      .filter((m) => m.meal.status === 'planned')
+      .flatMap((m) =>
+        m.items.map((i) => ({ id: i.id, foodName: i.foodName, nutrients: snapshotOf(i) })),
+      );
+    const alerts = summary.targets
+      ? planningAlerts(summary.targets, summary.consumed, planned)
+      : [];
+    return { summary, alerts };
   }
 
   return {
@@ -162,34 +192,23 @@ export function createMealPlansService(deps: {
       return plan(userId, input.toDate, items);
     },
 
-    /** Resumo do dia + alertas do planejamento (core). */
-    async dayPlan(userId: string, date: string, today: string): Promise<DayPlanDto> {
-      const [summary, raw] = await Promise.all([
-        meals.summary(userId, date, today),
-        meals.rawMeals(userId, date),
-      ]);
-      const planned = raw
-        .filter((m) => m.meal.status === 'planned')
-        .flatMap((m) =>
-          m.items.map((i) => ({ id: i.id, foodName: i.foodName, nutrients: snapshotOf(i) })),
-        );
-      const alerts = summary.targets
-        ? planningAlerts(summary.targets, summary.consumed, planned)
-        : [];
-      return { summary, alerts };
-    },
+    dayPlan,
 
     /** Alternativas para o item que estoura um nutriente (P7.3, ADR-040). */
     async substitutions(userId: string, itemId: string, nutrient: OverNutrient) {
       const item = await meals.getRawItem(userId, itemId);
       if (!item?.foodId) throw notFound('Item');
       const original = await foods.bundle(userId, item.foodId);
-      const candidates = await foods.byCategory(userId, original.food.category);
-      const used = new Set(
-        (await foods.usage(userId, { foodIds: candidates.map((c) => c.food.id) })).map(
-          (u) => u.user_food_usage.foodId,
-        ),
+      const [catalog, usage] = await Promise.all([
+        foods.byCategory(userId, original.food.category),
+        foods.usage(userId),
+      ]);
+      const used = new Set(usage.map((u) => u.user_food_usage.foodId));
+      // O histórico entra mesmo se o catálogo da categoria for grande (P7.3).
+      const history = [...(await foods.bundles(userId, [...used])).values()].filter(
+        (b) => b.food.category === original.food.category && b.food.isActive,
       );
+      const candidates = [...new Map([...history, ...catalog].map((b) => [b.food.id, b])).values()];
       const byId = new Map(candidates.map((c) => [c.food.id, c]));
       const options = findSubstitutions(
         { food: toSubstitutionFood(original), grams: item.grams },
@@ -215,6 +234,51 @@ export function createMealPlansService(deps: {
     },
 
     /**
+     * Complemento para proteína ou fibra abaixo da faixa (P7.3): histórico do usuário primeiro,
+     * depois o catálogo das categorias ricas no nutriente.
+     */
+    async complements(
+      userId: string,
+      date: string,
+      today: string,
+      nutrient: 'proteinG' | 'fiberG',
+    ) {
+      const { alerts } = await dayPlan(userId, date, today);
+      const low = alerts.find((a) => a.kind === 'low' && a.nutrient === nutrient);
+      const missing = low?.kind === 'low' ? low.missing : 0;
+      if (missing <= 0) return { nutrient, missing: 0, items: [] };
+      const categories =
+        nutrient === 'proteinG'
+          ? (['poultry', 'meats', 'fish', 'eggs', 'dairy', 'legumes'] as const)
+          : (['legumes', 'fruits', 'vegetables', 'cereals'] as const);
+      const [usage, ...catalogs] = await Promise.all([
+        foods.usage(userId),
+        ...categories.map((c) => foods.byCategory(userId, c)),
+      ]);
+      const used = new Set(usage.map((u) => u.user_food_usage.foodId));
+      const history = [...(await foods.bundles(userId, [...used])).values()].filter(
+        (b) => b.food.isActive,
+      );
+      const pool = [
+        ...new Map([...history, ...catalogs.flat()].map((b) => [b.food.id, b])).values(),
+      ];
+      const byId = new Map(pool.map((b) => [b.food.id, b]));
+      const options = complementSuggestions(
+        nutrient,
+        missing,
+        pool.map((b) => toSubstitutionFood(b, used.has(b.food.id))),
+      );
+      return {
+        nutrient,
+        missing,
+        items: options.flatMap((o) => {
+          const b = byId.get(o.food.id);
+          return b ? [{ food: toFoodDto(b), grams: o.grams, nutrients: o.nutrients }] : [];
+        }),
+      };
+    },
+
+    /**
      * Sugestão pelos macros restantes (P7.2, ADR-039): pool de receitas favoritas, modelos e
      * alimentos dos últimos 30 dias; limites padrão = restante previsto do dia.
      */
@@ -224,14 +288,14 @@ export function createMealPlansService(deps: {
       today: string,
     ): Promise<SuggestMealDto> {
       const summary = await meals.summary(userId, input.date, today);
-      const t = summary.targets;
-      const left = (k: 'kcal' | 'proteinG' | 'carbsG' | 'fatG') =>
-        t ? Math.max(0, t[k] - summary.consumed[k] - summary.planned[k]) : 0;
+      const left = summary.targets
+        ? plannedRemaining(summary.targets, summary.consumed, summary.planned)
+        : null;
       const constraints = {
-        kcal: input.kcal ?? left('kcal'),
-        proteinMin: input.proteinMin ?? left('proteinG'),
-        carbsMax: input.carbsMax ?? left('carbsG'),
-        fatMax: input.fatMax ?? left('fatG'),
+        kcal: input.kcal ?? left?.kcal ?? 0,
+        proteinMin: input.proteinMin ?? left?.proteinG ?? 0,
+        carbsMax: input.carbsMax ?? left?.carbsG ?? 0,
+        fatMax: input.fatMax ?? left?.fatG ?? 0,
       };
 
       const [favorites, templates, usage] = await Promise.all([
@@ -241,22 +305,33 @@ export function createMealPlansService(deps: {
       ]);
       const sizing = new Map<string, { step: number; maxGrams: number }>();
       for (const f of favorites) {
-        sizing.set(f.foodId, { step: f.servingGrams / 2, maxGrams: f.servingGrams * 2 });
+        sizing.set(f.foodId, poolSizing({ kind: 'recipe', servingGrams: f.servingGrams }));
       }
       for (const tpl of templates) {
         for (const i of tpl.items as TemplateItem[]) {
           if (!sizing.has(i.foodId))
-            sizing.set(i.foodId, { step: 10, maxGrams: Math.max(100, i.grams * 1.5) });
+            sizing.set(i.foodId, poolSizing({ kind: 'template', grams: i.grams }));
         }
       }
       for (const u of usage) {
         const id = u.user_food_usage.foodId;
-        const last = u.user_food_usage.lastQuantityG ?? 100;
-        if (!sizing.has(id))
-          sizing.set(id, { step: 10, maxGrams: Math.min(600, Math.max(100, last * 2)) });
+        if (!sizing.has(id)) {
+          sizing.set(
+            id,
+            poolSizing({ kind: 'history', lastGrams: u.user_food_usage.lastQuantityG }),
+          );
+        }
       }
-      const ids = [...sizing.keys()].slice(0, POOL_LIMIT);
-      const bundles = await foods.bundles(userId, ids);
+      const all = await foods.bundles(userId, [...sizing.keys()]);
+      const ids = [...sizing.keys()]
+        .filter((id) => all.get(id)?.food.isActive)
+        .slice(0, POOL_LIMIT);
+      const bundles = new Map(
+        ids.flatMap((id) => {
+          const b = all.get(id);
+          return b ? [[id, b] as const] : [];
+        }),
+      );
       const pool: SuggestPoolItem[] = ids.flatMap((id) => {
         const b = bundles.get(id);
         const size = sizing.get(id);

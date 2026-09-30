@@ -111,7 +111,7 @@ function Summary({ session }: { session: SessionDto }) {
   const hardSets = data?.hardSets ?? local.hardSets;
 
   return (
-    <Card className="space-y-3" aria-label="Resumo do treino">
+    <Card className="space-y-3" role="region" aria-label="Resumo do treino">
       <div className="space-y-1">
         <CardTitle>Treino concluído</CardTitle>
         <CardDescription>

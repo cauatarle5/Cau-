@@ -3,10 +3,9 @@
 import { Minus, Plus } from 'lucide-react';
 import { useState } from 'react';
 
-import { parseDecimal } from '@/lib/format';
+import { formatInputNumber, parseDecimal } from '@/lib/format';
 
-const display = (v: number | null) =>
-  v === null ? '' : v.toLocaleString('pt-BR', { maximumFractionDigits: 2, useGrouping: false });
+const display = (v: number | null) => (v === null ? '' : formatInputNumber(v));
 
 /** Ajuste rápido de carga/reps com botões grandes (P12.3). */
 export function Stepper({

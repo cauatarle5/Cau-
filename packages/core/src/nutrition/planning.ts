@@ -173,3 +173,40 @@ export function findSubstitutions(
     .slice(0, limit)
     .map(({ sameFamily: _, ...o }) => o);
 }
+
+export interface ComplementOption {
+  food: SubstitutionFood;
+  grams: number;
+  nutrients: Nutrients;
+}
+
+/**
+ * Complemento para proteína (< 85%) ou fibra (< 70%) prevista (P7.3): alimentos com mais do
+ * nutriente por kcal; gramas para cobrir o que falta (múltiplos de 10 g, até 300 g). Histórico
+ * do usuário primeiro.
+ */
+export function complementSuggestions(
+  nutrient: 'proteinG' | 'fiberG',
+  missing: number,
+  candidates: readonly SubstitutionFood[],
+  limit = 3,
+): ComplementOption[] {
+  if (missing <= 0) return [];
+  const minPer100 = nutrient === 'proteinG' ? 10 : 3;
+  return candidates
+    .flatMap((food) => {
+      const v = food.per100[nutrient];
+      const kcal = food.per100.kcal;
+      if (v === null || kcal === null || v < minPer100 || kcal <= 0) return [];
+      const grams = Math.min(300, ceilTo((missing * 100) / v, 10));
+      return [{ food, grams, nutrients: scaleNutrients(food.per100, grams), density: v / kcal }];
+    })
+    .sort(
+      (a, b) =>
+        Number(b.food.fromHistory ?? false) - Number(a.food.fromHistory ?? false) ||
+        b.density - a.density ||
+        a.food.name.localeCompare(b.food.name),
+    )
+    .slice(0, limit)
+    .map(({ density: _, ...o }) => o);
+}

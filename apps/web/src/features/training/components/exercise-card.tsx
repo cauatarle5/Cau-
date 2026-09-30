@@ -168,7 +168,11 @@ export function ExerciseCard({
     .join(' ');
 
   return (
-    <Card className={cn('space-y-3', skipped && 'opacity-70')} aria-label={exercise.exerciseName}>
+    <Card
+      className={cn('space-y-3', skipped && 'opacity-70')}
+      role="region"
+      aria-label={exercise.exerciseName}
+    >
       <div className="flex items-start justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">{exercise.exerciseName}</h2>

@@ -77,9 +77,9 @@ test('DoD Fase 4: planejar o dia, restante em tempo real e sugestão ao passar a
 
   // Café com muita muçarela: passa a meta de gordura e sugere troca.
   const breakfast = await addFood(page, 'Café da manhã', 'mussarela', /^Queijo, mozarela/, '300');
-  await expect(breakfast.getByRole('alert')).toContainText('passa a meta de gordura');
+  await expect(breakfast.getByTestId('item-alert')).toContainText('passa a meta de gordura');
   await planDraft(breakfast);
-  const alert = breakfast.getByRole('alert');
+  const alert = breakfast.getByTestId('item-alert');
   await expect(alert).toContainText('passa a meta de gordura');
   await alert.getByRole('button', { name: 'Ver trocas' }).click();
   const swaps = breakfast.getByRole('list', { name: 'Trocas sugeridas' });
@@ -89,7 +89,7 @@ test('DoD Fase 4: planejar o dia, restante em tempo real e sugestão ao passar a
   await expect(breakfast.getByRole('textbox', { name: 'Gramas de Queijo, ricota' })).toHaveValue(
     '485',
   );
-  await expect(breakfast.getByRole('alert')).toHaveCount(0);
+  await expect(breakfast.getByTestId('item-alert')).toHaveCount(0);
 
   // Planejada → consumida.
   await breakfast.getByRole('button', { name: 'Registrar' }).click();

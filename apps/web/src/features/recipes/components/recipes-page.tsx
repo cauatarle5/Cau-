@@ -20,6 +20,7 @@ import { RecipeForm } from './recipe-form';
 function RecipeCard({ recipe }: { recipe: RecipeDto }) {
   const today = useToday();
   const [message, setMessage] = useState<string>();
+  const [confirming, setConfirming] = useState(false);
   const favorite = useRecipeMutation(() =>
     recipesApi.update(recipe.id, { isFavorite: !recipe.isFavorite }),
   );
@@ -29,7 +30,7 @@ function RecipeCard({ recipe }: { recipe: RecipeDto }) {
   const log = useRecipeMutation(() => recipesApi.logPortion(today, slot, recipe.foodId ?? '', 1));
   const s = recipe.nutrition.perServing;
   return (
-    <Card className="space-y-2" aria-label={recipe.name}>
+    <Card className="space-y-2" role="region" aria-label={recipe.name}>
       <div className="flex items-start justify-between gap-2">
         <div>
           <CardTitle className="text-base">{recipe.name}</CardTitle>
@@ -85,15 +86,27 @@ function RecipeCard({ recipe }: { recipe: RecipeDto }) {
         >
           <Copy className="size-4" aria-hidden />
         </Button>
-        <Button
-          variant="ghost"
-          aria-label={`Excluir ${recipe.name}`}
-          onClick={() => {
-            remove.mutate(undefined);
-          }}
-        >
-          <Trash2 className="size-4" aria-hidden />
-        </Button>
+        {confirming ? (
+          <Button
+            variant="outline"
+            className="text-destructive"
+            onClick={() => {
+              remove.mutate(undefined);
+            }}
+          >
+            Confirmar exclusão
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            aria-label={`Excluir ${recipe.name}`}
+            onClick={() => {
+              setConfirming(true);
+            }}
+          >
+            <Trash2 className="size-4" aria-hidden />
+          </Button>
+        )}
       </div>
       {message ? (
         <p role="status" className="text-sm text-muted-foreground">

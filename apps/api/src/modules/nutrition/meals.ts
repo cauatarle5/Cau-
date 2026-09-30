@@ -216,13 +216,12 @@ export function createMealsService(deps: {
     async log(userId: string, id: string, eatenAt?: string): Promise<MealDto> {
       const current = await repo.getMeal(userId, id);
       if (!current) throw notFound('Refeição');
-      if (current.meal.status === 'logged') return toMealDto(current);
-      await repo.updateMeal(userId, id, {
-        status: 'logged',
-        eatenAt: eatenAt ? new Date(eatenAt) : new Date(),
-      });
-      for (const item of current.items) {
-        if (item.foodId) await foods.recordUsage(userId, item.foodId, item.grams, item.unitCode);
+      const changed = await repo.markLogged(userId, id, eatenAt ? new Date(eatenAt) : new Date());
+      // Só quem efetivamente mudou o status conta o uso (repetir ou correr não duplica).
+      if (changed) {
+        for (const item of current.items) {
+          if (item.foodId) await foods.recordUsage(userId, item.foodId, item.grams, item.unitCode);
+        }
       }
       const full = await repo.getMeal(userId, id);
       if (!full) throw notFound('Refeição');
@@ -295,8 +294,10 @@ export function createMealsService(deps: {
       );
       await repo.updateItem(itemId, resolved);
       if (patch.grams) await saveMeasures(userId, [measure]);
-      // Trocar o alimento de um item registrado conta como uso (P6.2 passo 8).
-      if (patch.foodId && patch.foodId !== item.foodId) {
+      // Trocar o alimento de um item registrado conta como uso (P6.2 passo 8); num item
+      // planejado não, pois ainda não foi comido (P7.2).
+      const meal = await repo.getMeal(userId, item.mealId);
+      if (patch.foodId && patch.foodId !== item.foodId && meal?.meal.status === 'logged') {
         await foods.recordUsage(userId, patch.foodId, resolved.grams, resolved.unitCode);
       }
       const full = await repo.getMeal(userId, item.mealId);

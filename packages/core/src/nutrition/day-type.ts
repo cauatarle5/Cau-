@@ -116,3 +116,27 @@ export function remainingTargets(targets: DayTotals, consumed: DayTotals): DayTo
     waterMl: targets.waterMl - consumed.waterMl,
   };
 }
+
+/** Restante previsto = meta − consumido − planejado, sem negativos (limites do solver, P7.2). */
+export function plannedRemaining(
+  targets: DayTotals,
+  consumed: DayTotals,
+  planned: DayTotals,
+): DayTotals {
+  const r = remainingTargets(targets, {
+    kcal: consumed.kcal + planned.kcal,
+    proteinG: consumed.proteinG + planned.proteinG,
+    carbsG: consumed.carbsG + planned.carbsG,
+    fatG: consumed.fatG + planned.fatG,
+    fiberG: consumed.fiberG + planned.fiberG,
+    waterMl: consumed.waterMl + planned.waterMl,
+  });
+  return {
+    kcal: Math.max(0, r.kcal),
+    proteinG: Math.max(0, r.proteinG),
+    carbsG: Math.max(0, r.carbsG),
+    fatG: Math.max(0, r.fatG),
+    fiberG: Math.max(0, r.fiberG),
+    waterMl: Math.max(0, r.waterMl),
+  };
+}

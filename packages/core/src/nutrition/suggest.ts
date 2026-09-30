@@ -178,3 +178,24 @@ export function suggestMeal(
     )
     .slice(0, opts.limit ?? 3);
 }
+
+/**
+ * Limites práticos de um item do pool (ADR-039): receita favorita em meias porções até 2
+ * porções; item de modelo em 10 g até 1,5× a quantidade do modelo (mín. 100 g); alimento do
+ * histórico em 10 g até 2× a última quantidade (100–600 g).
+ */
+export function poolSizing(
+  source:
+    | { kind: 'recipe'; servingGrams: number }
+    | { kind: 'template'; grams: number }
+    | { kind: 'history'; lastGrams: number | null },
+): { step: number; maxGrams: number } {
+  switch (source.kind) {
+    case 'recipe':
+      return { step: source.servingGrams / 2, maxGrams: source.servingGrams * 2 };
+    case 'template':
+      return { step: 10, maxGrams: Math.max(100, source.grams * 1.5) };
+    case 'history':
+      return { step: 10, maxGrams: Math.min(600, Math.max(100, (source.lastGrams ?? 100) * 2)) };
+  }
+}

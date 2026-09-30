@@ -2,27 +2,45 @@
 
 import { useMutation } from '@tanstack/react-query';
 import { Sparkles } from 'lucide-react';
+import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { SLOT_LABELS } from '@/features/nutrition/labels';
 import { formatNumber } from '@/lib/format';
-import { suggestSlot } from '@atlas/core';
+import { mealSlotSchema, type MealDto, type MealSlot } from '@atlas/schemas';
 
 import { planningApi } from '../api';
 import { usePlanMutation } from '../hooks';
 
-/** "O que comer?": 3 opções do solver com o restante do dia (P7.2). */
-export function SuggestPanel({ date }: { date: string }) {
-  const suggest = useMutation({ mutationFn: () => planningApi.suggest(date) });
-  const slot = suggestSlot(new Date().getHours());
-  const plan = usePlanMutation((items: { foodId: string; grams: number }[]) =>
-    planningApi.planMeal(
-      date,
-      slot,
-      items.map((i) => ({ foodId: i.foodId, quantity: i.grams, unit: 'g' as const })),
-    ),
+/** Adiciona itens ao plano do slot: na refeição planejada que já existe ou numa nova. */
+export function usePlanItems(date: string, meals: readonly MealDto[]) {
+  return usePlanMutation(
+    ({ slot, items }: { slot: MealSlot; items: { foodId: string; grams: number }[] }) => {
+      const body = items.map((i) => ({ foodId: i.foodId, quantity: i.grams, unit: 'g' as const }));
+      const existing = meals.find((m) => m.slot === slot && m.status === 'planned');
+      return existing
+        ? planningApi.addItems(existing.id, body)
+        : planningApi.planMeal(date, slot, body);
+    },
   );
+}
+
+/** "O que comer?": 3 opções do solver com o restante do dia (P7.2). */
+export function SuggestPanel({
+  date,
+  meals,
+  defaultSlot,
+}: {
+  date: string;
+  meals: readonly MealDto[];
+  defaultSlot: MealSlot;
+}) {
+  const [slot, setSlot] = useState<MealSlot>(defaultSlot);
+  const suggest = useMutation({ mutationFn: () => planningApi.suggest(date) });
+  const plan = usePlanItems(date, meals);
   const options = suggest.data?.options ?? [];
   return (
     <Card className="space-y-3">
@@ -44,6 +62,25 @@ export function SuggestPanel({ date }: { date: string }) {
           Sugerir
         </Button>
       </div>
+      <div className="flex items-center gap-2">
+        <Label htmlFor="suggest-slot" className="text-sm text-muted-foreground">
+          Refeição
+        </Label>
+        <Select
+          id="suggest-slot"
+          className="w-auto"
+          value={slot}
+          onChange={(e) => {
+            setSlot(mealSlotSchema.parse(e.target.value));
+          }}
+        >
+          {mealSlotSchema.options.map((s) => (
+            <option key={s} value={s}>
+              {SLOT_LABELS[s]}
+            </option>
+          ))}
+        </Select>
+      </div>
       {suggest.isSuccess && options.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           Sem sugestões: registre mais refeições ou favorite receitas para ampliar as opções.
@@ -63,7 +100,15 @@ export function SuggestPanel({ date }: { date: string }) {
               variant="outline"
               disabled={plan.isPending}
               onClick={() => {
-                plan.mutate(o.items.map((i) => ({ foodId: i.food.id, grams: i.grams })));
+                plan.mutate(
+                  { slot, items: o.items.map((i) => ({ foodId: i.food.id, grams: i.grams })) },
+                  // As opções valiam para o restante anterior: recalcular depois de planejar.
+                  {
+                    onSuccess: () => {
+                      suggest.reset();
+                    },
+                  },
+                );
               }}
             >
               Planejar em {SLOT_LABELS[slot]}

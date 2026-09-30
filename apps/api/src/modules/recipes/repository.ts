@@ -117,6 +117,25 @@ export function createRecipesRepository(db: Database) {
       return row;
     },
 
+    /** Receita (ativa) representada por um alimento, para detectar receita dentro de receita. */
+    async byFood(userId: string, foodId: string): Promise<RecipeBundle | undefined> {
+      const rows = await db
+        .select()
+        .from(recipes)
+        .where(and(live(userId), eq(recipes.foodId, foodId)));
+      return (await bundles(rows))[0];
+    },
+
+    /** Receitas (ativas) que usam o alimento como ingrediente. */
+    async dependents(userId: string, foodId: string): Promise<string[]> {
+      const rows = await db
+        .selectDistinct({ id: recipes.id })
+        .from(recipes)
+        .innerJoin(recipeIngredients, eq(recipeIngredients.recipeId, recipes.id))
+        .where(and(live(userId), eq(recipeIngredients.foodId, foodId)));
+      return rows.map((r) => r.id);
+    },
+
     /** Alimentos das receitas favoritas (pool do solver, P7.2). */
     async favoriteFoods(userId: string) {
       const rows = await db

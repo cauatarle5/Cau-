@@ -3,8 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { emptyNutrients, rescaleNutrients, type Nutrients } from '../food/nutrients';
 import { recipeNutrition } from '../food/recipe';
 
-import { findSubstitutions, planningAlerts, type SubstitutionFood } from './planning';
-import { suggestMeal, type SuggestPoolItem } from './suggest';
+import {
+  complementSuggestions,
+  findSubstitutions,
+  planningAlerts,
+  type SubstitutionFood,
+} from './planning';
+import { poolSizing, suggestMeal, type SuggestPoolItem } from './suggest';
 
 const n = (v: Partial<Nutrients>): Nutrients => ({ ...emptyNutrients(), ...v });
 
@@ -192,5 +197,58 @@ describe('rescaleNutrients', () => {
     expect(r.fatG).toBeCloseTo(20.16, 6);
     expect(r.carbsG).toBeNull();
     expect(rescaleNutrients(n({ kcal: 1 }), 0, 10).kcal).toBeNull();
+  });
+});
+
+describe('complementSuggestions (P7.3)', () => {
+  const food = (
+    id: string,
+    kcal: number,
+    extra: Partial<Nutrients>,
+    fromHistory = false,
+  ): SubstitutionFood => ({
+    id,
+    name: id,
+    category: 'legumes',
+    per100: n({ kcal, ...extra }),
+    fromHistory,
+  });
+
+  it('fiber: densest per kcal, grams to cover the gap (10 g steps, max 300 g), history first', () => {
+    // TACO: feijão carioca cozido 76 kcal / 8,5 g fibra; aveia 394 / 9,1; maçã 56 / 1,3.
+    const options = complementSuggestions('fiberG', 12, [
+      food('aveia', 394, { fiberG: 9.1 }),
+      food('feijao', 76, { fiberG: 8.5 }),
+      food('maca', 56, { fiberG: 1.3 }),
+    ]);
+    // Feijão: 12 × 100 / 8,5 = 141,2 → 150 g; aveia: 131,9 → 140 g. Maçã < 3 g/100 g fica de fora.
+    expect(options.map((o) => [o.food.id, o.grams])).toEqual([
+      ['feijao', 150],
+      ['aveia', 140],
+    ]);
+    expect(options[0]?.nutrients.fiberG).toBeCloseTo(12.75, 6);
+    const hist = complementSuggestions('fiberG', 12, [
+      food('feijao', 76, { fiberG: 8.5 }),
+      food('aveia', 394, { fiberG: 9.1 }, true),
+    ]);
+    expect(hist[0]?.food.id).toBe('aveia');
+  });
+
+  it('protein: caps at 300 g and returns nothing without a gap', () => {
+    const [o] = complementSuggestions('proteinG', 100, [food('frango', 159, { proteinG: 32 })]);
+    expect(o?.grams).toBe(300);
+    expect(complementSuggestions('proteinG', 0, [food('frango', 159, { proteinG: 32 })])).toEqual(
+      [],
+    );
+  });
+});
+
+describe('poolSizing (ADR-039)', () => {
+  it('recipe half portions, template 1,5×, history 2× within 100–600 g', () => {
+    expect(poolSizing({ kind: 'recipe', servingGrams: 250 })).toEqual({ step: 125, maxGrams: 500 });
+    expect(poolSizing({ kind: 'template', grams: 50 })).toEqual({ step: 10, maxGrams: 100 });
+    expect(poolSizing({ kind: 'template', grams: 200 })).toEqual({ step: 10, maxGrams: 300 });
+    expect(poolSizing({ kind: 'history', lastGrams: null })).toEqual({ step: 10, maxGrams: 200 });
+    expect(poolSizing({ kind: 'history', lastGrams: 400 })).toEqual({ step: 10, maxGrams: 600 });
   });
 });

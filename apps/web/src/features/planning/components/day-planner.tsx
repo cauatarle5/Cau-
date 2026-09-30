@@ -9,7 +9,7 @@ import { useMeals } from '@/features/nutrition/hooks/use-nutrition';
 import { ApiError } from '@/lib/api';
 import { formatDate, parseDecimal } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { addDays, scaleNutrients, type PlanningAlert } from '@atlas/core';
+import { addDays, scaleNutrients, suggestSlot, type PlanningAlert } from '@atlas/core';
 import type { MealSlot } from '@atlas/schemas';
 
 import { planningApi } from '../api';
@@ -121,6 +121,8 @@ export function DayPlanner({ today }: { today: string }) {
   const [drafts, setDrafts] = useState<Partial<Record<MealSlot, SlotDraft | null>>>({});
 
   const dayMeals = meals.data?.items ?? [];
+  // Hoje: refeição pelo horário; outro dia: começa no café.
+  const defaultSlot: MealSlot = date === today ? suggestSlot(new Date().getHours()) : 'breakfast';
   const draftItems: DraftItem[] = Object.entries(drafts).flatMap(([slot, d]) => {
     const grams = d ? parseDecimal(d.grams) : null;
     return d && grams && grams > 0
@@ -196,7 +198,7 @@ export function DayPlanner({ today }: { today: string }) {
           ))}
         </div>
         <div className="space-y-4">
-          <SuggestPanel date={date} />
+          <SuggestPanel key={date} date={date} meals={dayMeals} defaultSlot={defaultSlot} />
           <Templates date={date} />
         </div>
       </div>
@@ -208,6 +210,9 @@ export function DayPlanner({ today }: { today: string }) {
           planned={f.planned}
           remaining={f.remaining}
           alerts={f.alerts}
+          date={date}
+          meals={dayMeals}
+          slot={defaultSlot}
         />
       ) : null}
     </div>

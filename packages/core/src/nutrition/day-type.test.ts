@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   distributeWeek,
   planDayType,
+  plannedRemaining,
   rawDayKcal,
   remainingTargets,
   type WeekDayPlan,
@@ -115,6 +116,22 @@ describe('remainingTargets', () => {
       carbsG: -50,
       fatG: 10,
       fiberG: 18,
+      waterMl: 2500,
+    });
+  });
+});
+
+describe('plannedRemaining', () => {
+  it('target − consumed − planned, floored at zero', () => {
+    const t = { kcal: 2000, proteinG: 150, carbsG: 200, fatG: 60, fiberG: 28, waterMl: 3000 };
+    const c = { kcal: 800, proteinG: 60, carbsG: 90, fatG: 30, fiberG: 10, waterMl: 500 };
+    const p = { kcal: 700, proteinG: 50, carbsG: 120, fatG: 20, fiberG: 5, waterMl: 0 };
+    expect(plannedRemaining(t, c, p)).toEqual({
+      kcal: 500,
+      proteinG: 40,
+      carbsG: 0,
+      fatG: 10,
+      fiberG: 13,
       waterMl: 2500,
     });
   });

@@ -10,3 +10,5 @@ Dúvidas que **não bloqueiam** a fase atual (PROMPT_MESTRE 0.2). Cada item: con
 - **Operação offline recusada (4xx) não é revertida no aparelho:** a fila descarta e avisa, mas a série continua visível localmente até concluir o treino. Raro (validação acontece no cliente). Resolver se aparecer na prática (Fase 8, PWA).
 - **Limpeza de `idempotency_keys`:** sem TTL por enquanto; entra como job pg-boss (Fase 5 ou 6), usando o índice `created_at`. Duas requisições simultâneas com a mesma chave executam ambas; as criações do treino são idempotentes pelo id, então o efeito é o mesmo.
 - **Recarregar a página sem rede:** exige service worker (PWA, Fase 8). Hoje o treino funciona offline com o app aberto e sobrevive a fechar/reabrir com rede.
+- **Cópia de dia não é transacional entre slots:** se um slot falhar, os anteriores ficam gravados; o reenvio com a mesma `Idempotency-Key` devolve a resposta original. Resolver se aparecer na prática.
+- **`eaten_at` ao registrar refeição de outro dia:** usa o horário atual; o dia continua sendo o da refeição. Revisitar com o registro retroativo.

@@ -6,7 +6,7 @@ import type { RecipeDto, recipeInputSchema, recipePatchSchema } from '@atlas/sch
 
 import { AppError, notFound, validationError } from '../../lib/errors';
 import type { FoodsService } from '../foods/service';
-import { computePortion } from '../foods/service';
+import { computePortion, foodNotFound } from '../foods/service';
 
 import type { RecipeBundle, RecipesRepository } from './repository';
 
@@ -71,6 +71,7 @@ export function createRecipesService(deps: { repo: RecipesRepository; foods: Foo
         ]);
       }
       const bundle = await foods.bundle(userId, input.foodId);
+      if (!bundle.food.isActive) throw foodNotFound();
       const portion = computePortion(bundle, input.quantity, input.unit, input.grams);
       if (!portion.ok) {
         throw new AppError(
@@ -90,7 +91,8 @@ export function createRecipesService(deps: { repo: RecipesRepository; foods: Foo
         foodId: input.foodId,
         foodName: bundle.food.namePt,
         quantity: input.quantity,
-        unitCode: input.unit ?? 'g',
+        // Sem unidade = medida padrão do alimento, como nas refeições.
+        unitCode: input.unit ?? 'unit',
         grams: portion.grams,
         nutrientsSnapshot: portion.nutrients,
         order: index,
@@ -132,6 +134,31 @@ export function createRecipesService(deps: { repo: RecipesRepository; foods: Foo
     return { ingredients, cache, foodId };
   }
 
+  /** Receita dentro de receita não pode formar ciclo (A em B e B em A). */
+  async function assertNoCycle(
+    userId: string,
+    selfFoodId: string,
+    inputs: readonly IngredientInput[],
+  ) {
+    const seen = new Set<string>();
+    const stack = inputs.map((i) => i.foodId);
+    while (stack.length > 0) {
+      const foodId = stack.pop() as string;
+      if (foodId === selfFoodId) {
+        throw validationError([
+          {
+            field: 'ingredients',
+            message: 'Uma receita não pode conter a si mesma, nem indiretamente',
+          },
+        ]);
+      }
+      if (seen.has(foodId)) continue;
+      seen.add(foodId);
+      const inner = await repo.byFood(userId, foodId);
+      if (inner) stack.push(...inner.ingredients.map((i) => i.foodId));
+    }
+  }
+
   async function get(userId: string, id: string) {
     const b = await repo.get(userId, id);
     if (!b) throw notFound('Receita');
@@ -150,7 +177,7 @@ export function createRecipesService(deps: { repo: RecipesRepository; foods: Foo
       input.ingredients,
       null,
     );
-    await repo.insert(
+    const insert = repo.insert(
       userId,
       {
         id,
@@ -166,6 +193,11 @@ export function createRecipesService(deps: { repo: RecipesRepository; foods: Foo
       ingredients,
       cache,
     );
+    // Sem receita gravada, o alimento criado não pode ficar na busca.
+    await insert.catch(async (err: unknown) => {
+      await foods.setActive(userId, foodId, false);
+      throw err;
+    });
     return toRecipeDto(await get(userId, id));
   }
 
@@ -176,6 +208,59 @@ export function createRecipesService(deps: { repo: RecipesRepository; foods: Foo
       unit: i.unitCode as FoodUnit,
       grams: i.grams,
     }));
+
+  /**
+   * Recalcula a receita e, em cascata, as que a usam como ingrediente (P4.6: o cache muda
+   * quando ingredientes ou alimentos mudam).
+   */
+  async function update(
+    userId: string,
+    id: string,
+    patch: z.output<typeof recipePatchSchema>,
+    visited: Set<string>,
+  ): Promise<void> {
+    visited.add(id);
+    const current = await get(userId, id);
+    const r = current.recipe;
+    const name = patch.name ?? r.name;
+    const servings = patch.servings ?? r.servings;
+    const cookedWeightG = patch.cookedWeightG !== undefined ? patch.cookedWeightG : r.cookedWeightG;
+    const inputs = patch.ingredients ?? existingInputs(current);
+    if (r.foodId && patch.ingredients) await assertNoCycle(userId, r.foodId, inputs);
+    const { ingredients, cache, foodId } = await compute(
+      userId,
+      id,
+      name,
+      servings,
+      cookedWeightG,
+      inputs,
+      r.foodId,
+    );
+    const ok = await repo.update(
+      userId,
+      id,
+      {
+        name,
+        servings,
+        cookedWeightG,
+        foodId,
+        ...(patch.description !== undefined ? { description: patch.description } : {}),
+        ...(patch.isFavorite !== undefined ? { isFavorite: patch.isFavorite } : {}),
+        ...(patch.tags !== undefined ? { tags: patch.tags } : {}),
+        ...(patch.instructions !== undefined ? { instructions: patch.instructions } : {}),
+      },
+      ingredients,
+      cache,
+    );
+    if (!ok) {
+      // Excluída no meio da edição: o alimento reativado volta a sair da busca.
+      await foods.setActive(userId, foodId, false);
+      throw notFound('Receita');
+    }
+    for (const dep of await repo.dependents(userId, foodId)) {
+      if (!visited.has(dep)) await update(userId, dep, {}, visited);
+    }
+  }
 
   return {
     async list(userId: string) {
@@ -190,37 +275,7 @@ export function createRecipesService(deps: { repo: RecipesRepository; foods: Foo
 
     /** Editar recalcula tudo pelos alimentos atuais; refeições registradas não mudam (snapshot). */
     async update(userId: string, id: string, patch: z.output<typeof recipePatchSchema>) {
-      const current = await get(userId, id);
-      const r = current.recipe;
-      const name = patch.name ?? r.name;
-      const servings = patch.servings ?? r.servings;
-      const cookedWeightG =
-        patch.cookedWeightG !== undefined ? patch.cookedWeightG : r.cookedWeightG;
-      const { ingredients, cache, foodId } = await compute(
-        userId,
-        id,
-        name,
-        servings,
-        cookedWeightG,
-        patch.ingredients ?? existingInputs(current),
-        r.foodId,
-      );
-      await repo.update(
-        userId,
-        id,
-        {
-          name,
-          servings,
-          cookedWeightG,
-          foodId,
-          ...(patch.description !== undefined ? { description: patch.description } : {}),
-          ...(patch.isFavorite !== undefined ? { isFavorite: patch.isFavorite } : {}),
-          ...(patch.tags !== undefined ? { tags: patch.tags } : {}),
-          ...(patch.instructions !== undefined ? { instructions: patch.instructions } : {}),
-        },
-        ingredients,
-        cache,
-      );
+      await update(userId, id, patch, new Set());
       return toRecipeDto(await get(userId, id));
     },
 

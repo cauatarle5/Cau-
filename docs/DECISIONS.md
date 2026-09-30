@@ -248,3 +248,14 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
 - **Status:** aceita (complementa ADR-040)
 - **Contexto:** a categoria da TACO é ampla (laticínios inclui leite em pó); o motor sugeria leite em pó no lugar de queijo por reduzir mais gordura.
 - **Decisão:** candidatos da mesma família (primeira parte do nome, "Queijo, ricota" → "queijo") vêm primeiro; dentro de cada grupo, maior redução do nutriente excedente; histórico do usuário desempata.
+
+## ADR-042: Correções da revisão da Fase 4
+- **Status:** aceita (complementa ADR-038 a ADR-041)
+- **Contexto:** a revisão 16.3 não achou problemas altos; os médios pediam decisões.
+- **Decisão:**
+  - **Uso só do que foi comido:** trocar o alimento de um item planejado não conta uso; `POST meals/:id/log` só conta uso quando de fato muda o status (condicional `status = 'planned'`), então repetir ou correr não duplica.
+  - **Receita dentro de receita:** permitida; editar uma receita recalcula em cascata as que a usam (P4.6). Ciclos (direto ou indireto) são recusados com `VALIDATION_ERROR`. Alimento de receita excluída não entra como ingrediente, na cópia nem no pool de sugestões. Ingrediente sem unidade usa a medida padrão (`unit`), como nas refeições.
+  - **Consistência receita × alimento:** se a gravação da receita falhar, o alimento criado é desativado; se a receita for excluída durante uma edição, o alimento volta a ficar inativo e a API responde 404.
+  - **Complementos (P7.3):** proteína < 85% ou fibra < 70% previstas geram `POST nutrition/complements`: alimentos com ≥ 10 g de proteína ou ≥ 3 g de fibra por 100 g, mais densos por kcal, histórico primeiro, gramas para cobrir o que falta (10 g, até 300 g). No painel, dentro de "Detalhes", para não cobrir a tela no celular.
+  - **Sugestões:** o usuário escolhe a refeição de destino; itens entram na refeição planejada do slot, se houver. Limites padrão = `plannedRemaining` (core) e tamanhos do pool por `poolSizing` (core).
+  - **Substituição:** o histórico do usuário na categoria entra sempre nos candidatos, além do catálogo (ordenado por verificado e nome).

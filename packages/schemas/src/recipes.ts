@@ -203,3 +203,14 @@ export const suggestMealSchema = z.object({
   ),
 });
 export type SuggestMealDto = z.infer<typeof suggestMealSchema>;
+
+export const complementRequestSchema = z.object({
+  date: dateSchema,
+  nutrient: z.enum(['proteinG', 'fiberG']),
+});
+export const complementListSchema = z.object({
+  nutrient: z.enum(['proteinG', 'fiberG']),
+  missing: z.number(),
+  items: z.array(z.object({ food: foodSchema, grams: z.number(), nutrients: nutrientsSchema })),
+});
+export type ComplementListDto = z.infer<typeof complementListSchema>;
