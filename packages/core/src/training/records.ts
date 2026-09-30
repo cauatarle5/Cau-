@@ -35,7 +35,8 @@ export function detectSetRecords(set: SetLike, history: readonly SetLike[]): Rec
   const prevMaxLoad = Math.max(...done.map((s) => s.loadKg ?? 0));
   if (set.loadKg > prevMaxLoad)
     hits.push({ type: 'max_load', value: set.loadKg, reps: set.reps, loadKg: set.loadKg });
-  const atLoad = done.filter((s) => (s.loadKg ?? 0) >= set.loadKg!);
+  const load = set.loadKg;
+  const atLoad = done.filter((s) => (s.loadKg ?? 0) >= load);
   if (atLoad.length > 0) {
     const prevReps = Math.max(...atLoad.map((s) => s.reps ?? 0));
     if (set.reps > prevReps)
