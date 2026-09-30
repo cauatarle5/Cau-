@@ -2,48 +2,18 @@ import { randomUUID } from 'node:crypto';
 
 import { expect, test } from '@playwright/test';
 
-const password = 'senha-segura-123';
+import { signUp } from './helpers';
 
-test('cadastro, logout e login pelo navegador', async ({ page }) => {
-  const email = `e2e-${randomUUID()}@example.com`;
-
-  // Rota protegida sem sessão leva ao login.
+test('rota protegida sem sessão leva ao login; cadastro leva ao onboarding', async ({ page }) => {
   await page.goto('/hoje');
   await expect(page).toHaveURL(/\/entrar$/);
-
   await page.getByRole('link', { name: 'Criar conta' }).click();
   await expect(page).toHaveURL(/\/cadastro$/);
-  await page.getByLabel('Nome').fill('Pessoa E2E');
-  await page.getByLabel('E-mail').fill(email);
-  await page.getByLabel('Senha').fill(password);
-  await page.getByRole('button', { name: 'Criar conta' }).click();
+  await signUp(page);
 
-  await expect(page).toHaveURL(/\/hoje$/);
-  await expect(page.getByRole('heading', { name: 'Hoje', level: 1 })).toBeVisible();
-
-  // Navegação inferior (mobile).
-  await page
-    .getByRole('navigation', { name: 'Principal' })
-    .getByRole('link', { name: 'Treino' })
-    .click();
-  await expect(page.getByRole('heading', { name: 'Treino', level: 1 })).toBeVisible();
-
-  // Sessão sobrevive a recarregar.
-  await page.reload();
-  await expect(page.getByRole('heading', { name: 'Treino', level: 1 })).toBeVisible();
-
-  await page.getByRole('link', { name: 'Perfil' }).click();
-  await expect(page.getByText(email)).toBeVisible();
-  await page.getByRole('button', { name: 'Sair' }).click();
-  await expect(page).toHaveURL(/\/entrar$/);
-
+  // Onboarding incompleto: o app sempre volta para /onboarding (ADR-020).
   await page.goto('/hoje');
-  await expect(page).toHaveURL(/\/entrar$/);
-
-  await page.getByLabel('E-mail').fill(email.toUpperCase());
-  await page.getByLabel('Senha').fill(password);
-  await page.getByRole('button', { name: 'Entrar' }).click();
-  await expect(page).toHaveURL(/\/hoje$/);
+  await expect(page).toHaveURL(/\/onboarding$/);
 });
 
 test('login com senha errada mostra erro', async ({ page }) => {

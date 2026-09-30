@@ -1,13 +1,15 @@
-import { EmptyState, PageHeader } from '@/components/empty-state';
+'use client';
 
-export default function Page() {
+import { PageHeader } from '@/components/empty-state';
+import { TargetsCard } from '@/features/nutrition/components/targets-card';
+import { useToday } from '@/lib/use-today';
+
+export default function TodayPage() {
+  const today = useToday();
   return (
     <>
       <PageHeader title="Hoje" subtitle="O que eu preciso fazer hoje?" />
-      <EmptyState title="Seu dia aparece aqui">
-        Complete seu perfil e objetivos para ver o treino, as metas nutricionais e a prontidão do
-        dia.
-      </EmptyState>
+      <TargetsCard date={today} explain={false} />
     </>
   );
 }

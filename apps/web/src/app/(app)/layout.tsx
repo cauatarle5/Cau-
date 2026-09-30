@@ -4,34 +4,27 @@ import { useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
 
 import { AppShell } from '@/components/app-shell';
-import { useMe } from '@/features/auth/hooks/use-auth';
-import { ApiError } from '@/lib/api';
+import { FullPageLoading, RequireAuth } from '@/features/auth/components/require-auth';
+import { useProfile } from '@/features/profile/hooks/use-profile';
 
-export default function AppLayout({ children }: { children: ReactNode }) {
+/** Enquanto o onboarding não estiver completo, leva para /onboarding (ADR-020). */
+function OnboardingGate({ userName, children }: { userName: string; children: ReactNode }) {
   const router = useRouter();
-  const me = useMe();
-  const unauthenticated = me.error instanceof ApiError && me.error.status === 401;
+  const profile = useProfile();
+  const incomplete = profile.data?.onboardingComplete === false;
 
   useEffect(() => {
-    if (unauthenticated) router.replace('/entrar');
-  }, [unauthenticated, router]);
+    if (incomplete) router.replace('/onboarding');
+  }, [incomplete, router]);
 
-  if (me.data) return <AppShell userName={me.data.user.name}>{children}</AppShell>;
+  if (!profile.data || incomplete) return <FullPageLoading />;
+  return <AppShell userName={userName}>{children}</AppShell>;
+}
 
-  if (me.error && !unauthenticated) {
-    return (
-      <main className="flex min-h-dvh items-center justify-center px-4">
-        <p role="alert" className="text-sm text-destructive">
-          Não foi possível carregar sua conta. Recarregue a página.
-        </p>
-      </main>
-    );
-  }
-
+export default function AppLayout({ children }: { children: ReactNode }) {
   return (
-    <main className="flex min-h-dvh items-center justify-center" aria-busy="true">
-      <div className="h-8 w-40 animate-pulse rounded-lg bg-muted" />
-      <span className="sr-only">Carregando…</span>
-    </main>
+    <RequireAuth>
+      {(user) => <OnboardingGate userName={user.name}>{children}</OnboardingGate>}
+    </RequireAuth>
   );
 }

@@ -1,12 +1,19 @@
-import { EmptyState, PageHeader } from '@/components/empty-state';
+import { PageHeader } from '@/components/empty-state';
+import { MeasurementList } from '@/features/body/components/measurement-list';
+import { WeighInForm } from '@/features/body/components/weigh-in-form';
+import { WeightChart } from '@/features/body/components/weight-chart';
 
-export default function Page() {
+export default function ProgressPage() {
   return (
     <>
       <PageHeader title="Progresso" subtitle="Como estou evoluindo?" />
-      <EmptyState title="Sem dados para comparar">
-        Registre seu peso 3 vezes por semana para ver a tendência.
-      </EmptyState>
+      <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
+        <WeightChart />
+        <WeighInForm />
+      </div>
+      <div className="mt-4">
+        <MeasurementList />
+      </div>
     </>
   );
 }
