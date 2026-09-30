@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { emptyNutrients, type Nutrients } from '../food/nutrients';
+import { emptyNutrients, rescaleNutrients, type Nutrients } from '../food/nutrients';
 import { recipeNutrition } from '../food/recipe';
 
 import { findSubstitutions, planningAlerts, type SubstitutionFood } from './planning';
@@ -182,5 +182,15 @@ describe('suggestMeal (P7.2, ADR-039)', () => {
   it('returns nothing when infeasible or with no kcal left', () => {
     expect(suggestMeal([rice], { ...c, proteinMin: 40 })).toEqual([]);
     expect(suggestMeal([chicken], { ...c, kcal: 0 })).toEqual([]);
+  });
+});
+
+describe('rescaleNutrients', () => {
+  it('scales a snapshot linearly and keeps nulls', () => {
+    const r = rescaleNutrients(n({ kcal: 165, fatG: 12.6 }), 50, 80);
+    expect(r.kcal).toBeCloseTo(264, 6);
+    expect(r.fatG).toBeCloseTo(20.16, 6);
+    expect(r.carbsG).toBeNull();
+    expect(rescaleNutrients(n({ kcal: 1 }), 0, 10).kcal).toBeNull();
   });
 });

@@ -38,3 +38,18 @@ export function sumNutrients(items: readonly Nutrients[]): Nutrients {
 
 export const emptyNutrients = (): Nutrients =>
   Object.fromEntries(NUTRIENT_KEYS.map((k) => [k, null])) as Nutrients;
+
+/** Nutrientes de um snapshot reescalados para outra gramagem (edição em tempo real). */
+export function rescaleNutrients(
+  snapshot: Nutrients,
+  fromGrams: number,
+  toGrams: number,
+): Nutrients {
+  if (fromGrams <= 0) return emptyNutrients();
+  const out = {} as Nutrients;
+  for (const k of NUTRIENT_KEYS) {
+    const v = snapshot[k];
+    out[k] = v === null ? null : (v * toGrams) / fromGrams;
+  }
+  return out;
+}

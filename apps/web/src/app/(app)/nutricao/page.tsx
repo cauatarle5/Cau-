@@ -1,6 +1,9 @@
 'use client';
 
+import Link from 'next/link';
+
 import { PageHeader } from '@/components/empty-state';
+import { Button } from '@/components/ui/button';
 import { DayNutritionCard } from '@/features/nutrition/components/day-nutrition-card';
 import { DayTypeSelect } from '@/features/nutrition/components/day-type-select';
 import { FoodSearchAdd } from '@/features/nutrition/components/food-search-add';
@@ -14,8 +17,14 @@ export default function NutritionPage() {
   return (
     <>
       <PageHeader title="Nutrição" subtitle="Registro alimentar, metas e planejamento." />
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <DayTypeSelect date={today} />
+        <Button asChild variant="outline">
+          <Link href="/nutricao/planejar">Planejar dia</Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/nutricao/receitas">Receitas</Link>
+        </Button>
       </div>
       <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
         <div className="space-y-4">
