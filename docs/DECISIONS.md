@@ -188,3 +188,18 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
   - Número por extenso só é convertido no início de um item ("queijo meia cura" fica como está).
   - `foods(source_code, source_ref)` passa a ter índice único; escritas de alias/medida pessoal em transação.
 - **Consequências:** o piso de segurança diário continua prevalecendo sobre a média semanal (ADR-028), agora documentado em teste. Refeição planejada → consumida (`POST meals/:id/log`) entra na Fase 4 e registrará o uso nesse momento.
+
+## ADR-033: Catálogo de exercícios próprio
+- **Status:** aceita
+- **Contexto:** P15 (Fase 3) pede ~150 exercícios com mapeamento muscular; não há fonte pública adotada no documento.
+- **Decisão:** catálogo escrito para o projeto em `packages/db/seeds/exercises.ts`: nome, aliases, padrão de movimento, mecânica, lateralidade, equipamentos (códigos do catálogo `equipment`), tipo de carga, incremento padrão (2,5 kg compostos de membros superiores, 5 kg compostos de membros inferiores, 1 kg isolados, P8.3), tags de contraindicação e músculos primários (1,0) / secundários (0,5). Os 19 músculos da DATA_MODEL 4.3 também são seed. Seed idempotente pelo nome.
+
+## ADR-034: Offline e idempotência
+- **Status:** aceita (substitui a ADR-027)
+- **Contexto:** P12.3 exige a sessão de treino inteira sem rede; P3.5 pede `Idempotency-Key`.
+- **Decisão:** o cliente gera os IDs (UUID v7) de sessão, exercício da sessão e série; as criações aceitam `id` e são idempotentes por (usuário, id): repetir a mesma criação devolve o registro existente. Toda escrita do treino ativo entra numa fila local (IndexedDB) com `Idempotency-Key` igual ao id da operação e é reenviada em ordem ao reconectar. A API guarda respostas de POST com `Idempotency-Key` em `idempotency_keys` (usuário, chave) e as devolve em repetições. O estado da sessão ativa é persistido localmente e sobrevive a fechar o app. `source = 'offline_sync'` quando a sessão foi criada pela fila.
+
+## ADR-035: Escopo do treino na Fase 3
+- **Status:** aceita
+- **Contexto:** a Fase 3 é o treino núcleo; periodização e adaptação são da Fase 5.
+- **Decisão:** `workout_sessions.workout_template_id` (aditivo) liga a sessão ao template sem agenda. A meta de cada série é a faixa do template (`rep_min..rep_max`, `target_rir`); os fantasmas são os valores da última sessão com o mesmo exercício, por índice de série. Mesociclos, `planned_workouts`, progressão dupla aplicada às metas, registro de dor e adaptação por prontidão ficam para a Fase 5. Um programa `active` por usuário.
