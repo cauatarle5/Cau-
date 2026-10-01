@@ -366,3 +366,42 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
   - **Contexto e telas:**
     - O `daily-context` de outro dia não traz insight do topo.
     - O período personalizado é validado no cliente: datas completas, sem futuro, até 400 dias.
+
+## ADR-054: Arquitetura do Coach
+- **Status:** aceita
+- **Contexto:** P10.2, P10.3 e P10.6 pedem um Coach com ferramentas sobre o motor, streaming, cache do resumo de perfil e modelos por variável de ambiente.
+- **Decisão:**
+  - **Laço de ferramentas:** manual, em `packages/ai/src/coach`, com cliente do SDK injetável (permite cliente falso nos testes, como no parser, ADR-025) e `messages.stream`.
+  - **Rodadas:** até 6 rodadas de ferramentas por mensagem. Chamadas paralelas são executadas juntas e devolvidas numa única mensagem de `tool_result`. Erro de ferramenta volta com `is_error`.
+  - **Modelo:** vem só de `AI_MODEL_CHAT`; o `.env.example` sugere `claude-sonnet-5-5` (chat) e `claude-haiku-4-5` (`AI_MODEL_FAST`). Sem `tool_choice` forçado; ferramentas com `strict: true` e esquema gerado do Zod.
+  - **Prompt e cache:** system prompt fixo com `cache_control`, seguido de um bloco com o resumo do perfil e o DailyContext de hoje. O histórico da conversa é só acrescentado, nunca reescrito.
+  - **Ferramentas:** as de leitura chamam os serviços da API sempre com o `userId` da sessão; o modelo nunca escolhe o usuário. As de escrita só criam `ai_action_proposals` (nada é gravado sem confirmação).
+
+## ADR-055: Números ancorados nas ferramentas
+- **Status:** aceita
+- **Contexto:** "Nenhum número exibido ao usuário vem de LLM" (CLAUDE.md) e P10.4 ("sem números ausentes dos retornos").
+- **Decisão:**
+  - `groundedNumbers(texto, fontes)` no core extrai os números do texto em pt-BR (milhar com ponto, decimal com vírgula, sinal −, %, unidades, intervalos, datas dd/mm) e procura cada um nos números das fontes: retornos das ferramentas e contexto injetado.
+  - **Tolerância:** arredondamento para a casa decimal exibida. Variações de unidade aceitas: fração ↔ % e g ↔ kg.
+  - **Ignorados:** números da própria pergunta do usuário, ordinais e contagens de 0 a 10 (passos, "3 dias").
+  - **Na avaliação:** qualquer número não ancorado reprova.
+  - **No chat:** os não ancorados são gravados em `ai_messages.ungrounded` para auditoria.
+
+## ADR-056: Propostas, resumo semanal, limite e degradação
+- **Status:** aceita
+- **Contexto:** P10.2 (escrita por proposta), P10.5 (resumo semanal) e P10.6 (limite diário e funcionamento sem chave).
+- **Decisão:**
+  - **Expiração:** proposta pendente expira em 24 h.
+  - **Aplicar** reusa os serviços, com as mesmas validações da interface:
+    - refeição registrada ou planejada: `meals.create` com o texto/itens interpretados e os nutrientes do banco;
+    - troca de exercício: `updateProgram`, passando pelo validador da P8.7;
+    - adaptação do treino: o plano adaptado do dia, sempre recalculado pelo core e nunca pelo payload do modelo;
+    - meta: `createGoal`, com o impacto recalculado ao criar a proposta.
+  - **Resumo semanal:**
+    - Gerado na segunda às 06:00 locais (mesmo job horário) a partir de `analytics.summary` da semana anterior e dos insights ativos.
+    - O LLM redige, e o texto só é aceito se todos os números estiverem ancorados.
+    - Sem chave, com erro ou com número solto, usa um resumo por modelo de texto determinístico.
+    - Fica guardado em `weekly_summaries`.
+  - **Limite:** tokens registrados por mensagem. O limite diário por usuário vem de `AI_DAILY_TOKEN_LIMIT` (padrão 200 mil); estourou, `429 AI_DAILY_LIMIT`.
+  - **Sem chave/modelo:** `503 AI_UNAVAILABLE` no chat. A tela avisa e o resto do sistema funciona.
+  - **E2E:** `AI_FAKE=true` liga um cliente roteirizado, recusado com `NODE_ENV=production`.
