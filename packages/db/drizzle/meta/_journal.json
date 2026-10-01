@@ -64,6 +64,13 @@
       "when": 1790861170981,
       "tag": "0008_periodization_recovery",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790861297925,
+      "tag": "0009_session_adaptation",
+      "breakpoints": true
     }
   ]
 }

@@ -3,6 +3,14 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
 import {
+  adaptedQuerySchema,
+  adaptedWorkoutSchema,
+  plannedWorkoutListSchema,
+  plannedWorkoutPatchSchema,
+  plannedWorkoutSchema,
+  programDraftSchema,
+  programGenerateSchema,
+  rangeQuerySchema,
   exerciseProgressQuerySchema,
   exerciseProgressSchema,
   idParamSchema,
@@ -25,6 +33,7 @@ import {
 
 import { authed } from '../../lib/request';
 
+import type { AgendaService } from './agenda';
 import type { TrainingService } from './service';
 
 const errors = {
@@ -35,8 +44,11 @@ const errors = {
   422: problemDetailsSchema,
 };
 
-export function trainingRoutes(app: FastifyInstance, opts: { service: TrainingService }) {
-  const { service } = opts;
+export function trainingRoutes(
+  app: FastifyInstance,
+  opts: { service: TrainingService; agenda: AgendaService },
+) {
+  const { service, agenda } = opts;
   const r = app.withTypeProvider<ZodTypeProvider>();
   const base = { preHandler: app.requireAuth };
   const create = { preHandler: [app.requireAuth, app.idempotent] };
@@ -74,6 +86,62 @@ export function trainingRoutes(app: FastifyInstance, opts: { service: TrainingSe
     },
     async (req, reply) =>
       reply.status(201).send(await service.createProgram(authed(req), req.body)),
+  );
+
+  r.post(
+    '/programs/generate',
+    {
+      ...base,
+      schema: {
+        tags: ['training'],
+        body: programGenerateSchema,
+        response: { 200: programDraftSchema, ...errors },
+      },
+    },
+    (req) => agenda.generate(authed(req), req.body),
+  );
+
+  r.get(
+    '/planned-workouts',
+    {
+      ...base,
+      schema: {
+        tags: ['training'],
+        querystring: rangeQuerySchema,
+        response: { 200: plannedWorkoutListSchema, ...errors },
+      },
+    },
+    async (req) => ({
+      items: await agenda.listPlanned(authed(req).userId, req.query.from, req.query.to),
+    }),
+  );
+
+  r.patch(
+    '/planned-workouts/:id',
+    {
+      ...base,
+      schema: {
+        tags: ['training'],
+        params: idParamSchema,
+        body: plannedWorkoutPatchSchema,
+        response: { 200: plannedWorkoutSchema, ...errors },
+      },
+    },
+    (req) => agenda.patchPlanned(authed(req).userId, req.params.id, req.body),
+  );
+
+  r.get(
+    '/planned-workouts/:id/adapted',
+    {
+      ...base,
+      schema: {
+        tags: ['training'],
+        params: idParamSchema,
+        querystring: adaptedQuerySchema,
+        response: { 200: adaptedWorkoutSchema, ...errors },
+      },
+    },
+    (req) => agenda.adapted(authed(req), req.params.id, req.query.redChoice),
   );
 
   r.patch(

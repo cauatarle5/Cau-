@@ -217,6 +217,20 @@ export const workoutTemplateSchema = z.object({
   exercises: z.array(templateExerciseSchema),
 });
 export type WorkoutTemplateDto = z.infer<typeof workoutTemplateSchema>;
+export const programWarningSchema = z.object({
+  code: z.enum([
+    'VOLUME_LOW',
+    'VOLUME_HIGH',
+    'SESSION_TOO_LONG',
+    'CONTRAINDICATED',
+    'LEGS_NEAR_SPORT',
+  ]),
+  message: z.string(),
+  muscle: z.string().optional(),
+  template: z.string().optional(),
+});
+export type ProgramWarningDto = z.infer<typeof programWarningSchema>;
+
 export const programSchema = z.object({
   id: z.uuid(),
   name: z.string(),
@@ -226,6 +240,8 @@ export const programSchema = z.object({
   endDate: z.string().nullable(),
   createdAt: z.string(),
   templates: z.array(workoutTemplateSchema),
+  /** Avisos do validador (P8.7.7): não impedem salvar. */
+  warnings: z.array(programWarningSchema),
 });
 export type ProgramDto = z.infer<typeof programSchema>;
 export const programListSchema = z.object({ items: z.array(programSchema) });
@@ -304,6 +320,15 @@ export const sessionExerciseSchema = z.object({
   restSeconds: z.number().int().nullable(),
   notes: z.string().nullable(),
   ghosts: z.array(ghostSchema),
+  /** Meta da progressão dupla (P8.3), ex.: 80 kg × 9 a 10. */
+  target: z
+    .object({
+      action: z.enum(['increase', 'keep', 'decrease', 'none']),
+      loadKg: z.number().nullable(),
+      repMin: z.number().int(),
+      repMax: z.number().int(),
+    })
+    .nullable(),
   sets: z.array(setLogSchema),
 });
 export type SessionExerciseDto = z.infer<typeof sessionExerciseSchema>;
@@ -313,6 +338,10 @@ export const sessionSchema = z.object({
   date: z.string(),
   name: z.string(),
   workoutTemplateId: z.uuid().nullable(),
+  plannedWorkoutId: z.uuid().nullable(),
+  /** Adaptada por prontidão/contexto (ADR-045): não conta para a progressão dupla. */
+  adapted: z.boolean(),
+  adaptationNote: z.string().nullable(),
   startedAt: z.string(),
   endedAt: z.string().nullable(),
   durationMin: z.number().int().nullable(),
@@ -331,10 +360,14 @@ export const sessionStartSchema = z
   .object({
     id: z.uuid().optional(),
     workoutTemplateId: z.uuid().nullable().optional(),
+    /** Inicia o treino agendado, já adaptado ao dia (ADR-045). */
+    plannedWorkoutId: z.uuid().optional(),
+    /** Prontidão vermelha: sessão leve (padrão) ou descanso. */
+    redChoice: z.enum(['light', 'rest']).optional(),
     name: name('o nome do treino').optional(),
     startedAt: instant.optional(),
   })
-  .refine((v) => v.workoutTemplateId || v.name, {
+  .refine((v) => v.workoutTemplateId || v.plannedWorkoutId || v.name, {
     message: 'Escolha um treino ou informe um nome',
     path: ['name'],
   });

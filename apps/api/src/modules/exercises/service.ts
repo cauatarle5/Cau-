@@ -82,6 +82,11 @@ export function createExercisesService(deps: {
 
     getBundle,
 
+    /** Catálogo visível ao usuário (sistema + personalizados), para o gerador (P8.7). */
+    catalog(userId: string) {
+      return repo.search(userId, { limit: 2000 });
+    },
+
     /** Exercícios visíveis ao usuário, por id (para outros módulos). */
     bundles(userId: string, ids: readonly string[]) {
       return repo.byIds(userId, ids);

@@ -239,6 +239,9 @@ export const workoutSessions = pgTable(
     plannedWorkoutId: uuid('planned_workout_id').references(() => plannedWorkouts.id, {
       onDelete: 'set null',
     }),
+    /** Adaptada por prontidão/contexto: fora da progressão dupla (ADR-045). */
+    adapted: boolean('adapted').notNull().default(false),
+    adaptationNote: text('adaptation_note'),
     /** Snapshot do nome (histórico imutável). */
     name: text('name').notNull(),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull(),

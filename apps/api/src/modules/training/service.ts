@@ -6,6 +6,7 @@ import {
   ghostsFor,
   isHardSet,
   localDate,
+  nextTarget,
   recordTimeline,
   sessionStats,
   setRowCount,
@@ -39,7 +40,16 @@ import { AppError, notFound, validationError } from '../../lib/errors';
 import type { ExerciseBundle } from '../exercises/repository';
 import type { ExercisesService } from '../exercises/service';
 import { toExerciseDto } from '../exercises/service';
+import type { RecoveryService } from '../recovery/service';
 
+import {
+  blockIncrease,
+  exposuresFor,
+  painLinked,
+  programValidationInput,
+  toCatalogExercise,
+  type AgendaService,
+} from './agenda';
 import type {
   HistorySet,
   NewTemplate,
@@ -109,8 +119,12 @@ function previousSessions(history: readonly HistorySet[], before: Date, excludeS
 export function createTrainingService(deps: {
   repo: TrainingRepository;
   exercises: ExercisesService;
+  /** Agenda, gerador e adaptação (ligação tardia, ADR-043/045). */
+  agenda: () => AgendaService;
+  /** Dores para bloquear progressão (ADR-046); ligação tardia. */
+  recovery: () => RecoveryService;
 }) {
-  const { repo, exercises } = deps;
+  const { repo, exercises, agenda, recovery } = deps;
 
   async function bundleMap(userId: string, ids: Iterable<string>) {
     const unique = [...new Set(ids)];
@@ -134,7 +148,11 @@ export function createTrainingService(deps: {
 
   // Programas -------------------------------------------------------------
 
-  function toProgramDto(b: ProgramBundle, names: ReadonlyMap<string, ExerciseBundle>): ProgramDto {
+  function toProgramDto(
+    b: ProgramBundle,
+    names: ReadonlyMap<string, ExerciseBundle>,
+    warnings: ProgramDto['warnings'],
+  ): ProgramDto {
     const p = b.program;
     return {
       id: p.id,
@@ -164,6 +182,7 @@ export function createTrainingService(deps: {
           notes: e.notes,
         })),
       })),
+      warnings,
     };
   }
 
@@ -172,7 +191,11 @@ export function createTrainingService(deps: {
       userId,
       bundles.flatMap((b) => b.templates.flatMap((t) => t.exercises.map((e) => e.exerciseId))),
     );
-    return bundles.map((b) => toProgramDto(b, names));
+    return Promise.all(
+      bundles.map(async (b) =>
+        toProgramDto(b, names, await agenda().warnings(userId, programValidationInput(b), names)),
+      ),
+    );
   }
 
   async function newTemplates(userId: string, templates: ProgramInput['templates']) {
@@ -223,9 +246,10 @@ export function createTrainingService(deps: {
   async function toSessionDto(userId: string, b: SessionBundle): Promise<SessionDto> {
     const { session, sets, records } = b;
     const exIds = b.exercises.map((e) => e.exerciseId);
-    const [info, history] = await Promise.all([
+    const [info, history, context] = await Promise.all([
       bundleMap(userId, [...exIds, ...records.map((r) => r.exerciseId)]),
       repo.historySets(userId, exIds),
+      recovery().adaptationContext(userId, session.date),
     ]);
     const names = new Map([
       ...[...info.values()].map((x) => [x.exercise.id, x.exercise.namePt] as const),
@@ -244,6 +268,28 @@ export function createTrainingService(deps: {
         own.map((x) => x.setIndex),
       );
       const bundle = info.get(se.exerciseId);
+      const exposures = exposuresFor(history, se.exerciseId, {
+        sessionId: session.id,
+        startedAt: session.startedAt,
+      });
+      const lastLoad =
+        exposures
+          .at(-1)
+          ?.sets.reduce<number | null>(
+            (m, x) => (x.loadKg === null ? m : Math.max(m ?? 0, x.loadKg)),
+            null,
+          ) ?? null;
+      const raw = nextTarget(exposures, {
+        repMin: se.repMin ?? 8,
+        repMax: se.repMax ?? 12,
+        targetRir: se.targetRir,
+        incrementKg: bundle?.exercise.defaultIncrementKg ?? 2.5,
+      });
+      // Sessão adaptada não busca progressão; dor forte bloqueia subir carga (ADR-045/046).
+      const target =
+        session.adapted || (bundle && painLinked(toCatalogExercise(bundle), context.pain, 7))
+          ? blockIncrease(raw, lastLoad)
+          : raw;
       return {
         id: se.id,
         order: se.order,
@@ -262,6 +308,7 @@ export function createTrainingService(deps: {
         restSeconds: se.restSeconds,
         notes: se.notes,
         ghosts: ghostsFor(setCount, last ?? []),
+        target: target.action === 'none' ? null : target,
         sets: own.map(toSetDto),
       };
     });
@@ -271,6 +318,9 @@ export function createTrainingService(deps: {
       date: session.date,
       name: session.name,
       workoutTemplateId: session.workoutTemplateId,
+      plannedWorkoutId: session.plannedWorkoutId,
+      adapted: session.adapted,
+      adaptationNote: session.adaptationNote,
       startedAt: session.startedAt.toISOString(),
       endedAt: session.endedAt?.toISOString() ?? null,
       durationMin: session.durationMin,
@@ -378,6 +428,7 @@ export function createTrainingService(deps: {
         },
         templates,
       );
+      if (input.activate) await agenda().materialize(ctx, id);
       return getProgram(ctx.userId, id);
     },
 
@@ -403,6 +454,7 @@ export function createTrainingService(deps: {
 
     async activateProgram(ctx: Ctx, id: string) {
       if (!(await repo.activateProgram(ctx.userId, id, ctx.today))) throw notFound('Programa');
+      await agenda().materialize(ctx, id);
       return getProgram(ctx.userId, id);
     },
 
@@ -419,7 +471,15 @@ export function createTrainingService(deps: {
       const startedAt = input.startedAt ? new Date(input.startedAt) : new Date();
       let name = input.name;
       let seRows: Parameters<TrainingRepository['createSession']>[2] = [];
-      if (input.workoutTemplateId) {
+      let templateId = input.workoutTemplateId ?? null;
+      let plan: Awaited<ReturnType<AgendaService['sessionPlan']>> | null = null;
+      if (input.plannedWorkoutId) {
+        // Treino agendado já adaptado ao dia (ADR-045).
+        plan = await agenda().sessionPlan(ctx, input.plannedWorkoutId, input.redChoice);
+        name ??= plan.name;
+        templateId = plan.workoutTemplateId;
+        seRows = plan.exercises;
+      } else if (input.workoutTemplateId) {
         const tpl = await repo.getTemplate(userId, input.workoutTemplateId);
         if (!tpl) throw notFound('Treino do programa');
         const info = await bundleMap(
@@ -445,12 +505,16 @@ export function createTrainingService(deps: {
         {
           ...(input.id ? { id: input.id } : {}),
           date: localDate(startedAt, ctx.timezone),
-          workoutTemplateId: input.workoutTemplateId ?? null,
+          workoutTemplateId: templateId,
+          plannedWorkoutId: input.plannedWorkoutId ?? null,
+          adapted: plan?.adapted ?? false,
+          adaptationNote: plan?.note ?? null,
           name: name ?? 'Treino',
           startedAt,
         },
         seRows,
       );
+      if (created && plan) await plan.markPlanned();
       if (!created) {
         // Corrida entre duas tentativas com o mesmo id.
         const again = input.id ? await repo.getSession(userId, input.id) : undefined;

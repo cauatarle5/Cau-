@@ -5,9 +5,12 @@ import {
   eq,
   gte,
   inArray,
+  isNotNull,
   isNull,
   lte,
+  mesocycles,
   personalRecords,
+  plannedWorkouts,
   programs,
   sessionExercises,
   setLogs,
@@ -16,7 +19,9 @@ import {
   workoutSessions,
   workoutTemplates,
   type Database,
+  type MesocycleRow,
   type PersonalRecordRow,
+  type PlannedWorkoutRow,
   type ProgramRow,
   type SessionExerciseRow,
   type SetLogRow,
@@ -52,6 +57,7 @@ export interface HistorySet extends SetLogRow {
   sessionId: string;
   sessionStartedAt: Date;
   sessionEndedAt: Date | null;
+  sessionAdapted: boolean;
   date: string;
   exerciseId: string;
 }
@@ -64,6 +70,7 @@ const historyColumns = {
   sessionId: workoutSessions.id,
   sessionStartedAt: workoutSessions.startedAt,
   sessionEndedAt: workoutSessions.endedAt,
+  sessionAdapted: workoutSessions.adapted,
   date: workoutSessions.date,
   exerciseId: sessionExercises.exerciseId,
 };
@@ -74,6 +81,7 @@ function toHistory(
     sessionId: string;
     sessionStartedAt: Date;
     sessionEndedAt: Date | null;
+    sessionAdapted: boolean;
     date: string;
     exerciseId: string;
   }[],
@@ -83,6 +91,7 @@ function toHistory(
     sessionId: r.sessionId,
     sessionStartedAt: r.sessionStartedAt,
     sessionEndedAt: r.sessionEndedAt,
+    sessionAdapted: r.sessionAdapted,
     date: r.date,
     exerciseId: r.exerciseId,
   }));
@@ -553,6 +562,125 @@ export function createTrainingRepository(db: Database) {
         .where(and(eq(personalRecords.userId, userId), eq(personalRecords.setLogId, setLogId)));
     },
 
+    // Agenda (ADR-043) ---------------------------------------------------
+
+    /** Carga sRPE das sessões com RPE e duração (P8.5). */
+    async sessionLoads(userId: string, from: string, to: string) {
+      const rows = await db
+        .select({
+          date: workoutSessions.date,
+          rpe: workoutSessions.sessionRpe,
+          minutes: workoutSessions.durationMin,
+        })
+        .from(workoutSessions)
+        .where(
+          and(
+            liveSession(userId),
+            gte(workoutSessions.date, from),
+            lte(workoutSessions.date, to),
+            isNotNull(workoutSessions.sessionRpe),
+            isNotNull(workoutSessions.durationMin),
+          ),
+        );
+      return rows;
+    },
+
+    /**
+     * Recria a agenda: apaga planejados futuros ainda não feitos (de qualquer programa) e os
+     * mesociclos deste programa; grava mesociclos e planejados novos.
+     */
+    async replaceAgenda(
+      userId: string,
+      programId: string,
+      today: string,
+      mesos: Omit<typeof mesocycles.$inferInsert, 'programId'>[],
+      planned: (Omit<typeof plannedWorkouts.$inferInsert, 'userId' | 'mesocycleId'> & {
+        mesocycleOrder: number;
+      })[],
+    ) {
+      await db.transaction(async (tx) => {
+        await tx
+          .delete(plannedWorkouts)
+          .where(
+            and(
+              eq(plannedWorkouts.userId, userId),
+              gte(plannedWorkouts.date, today),
+              inArray(plannedWorkouts.status, ['planned', 'moved', 'skipped']),
+            ),
+          );
+        const owned = await tx
+          .select({ id: programs.id })
+          .from(programs)
+          .where(and(eq(programs.userId, userId), eq(programs.id, programId)));
+        if (owned.length === 0) return;
+        await tx.delete(mesocycles).where(eq(mesocycles.programId, programId));
+        if (mesos.length === 0) return;
+        const inserted = await tx
+          .insert(mesocycles)
+          .values(mesos.map((m) => ({ ...m, programId })))
+          .returning({ id: mesocycles.id, order: mesocycles.order });
+        const byOrder = new Map(inserted.map((m) => [m.order, m.id]));
+        if (planned.length > 0) {
+          await tx.insert(plannedWorkouts).values(
+            planned.map(({ mesocycleOrder, ...p }) => ({
+              ...p,
+              userId,
+              mesocycleId: byOrder.get(mesocycleOrder) ?? null,
+            })),
+          );
+        }
+      });
+    },
+
+    async listPlanned(
+      userId: string,
+      opts: { from?: string; to?: string; ids?: readonly string[] },
+    ) {
+      const rows = await db
+        .select({
+          planned: plannedWorkouts,
+          templateName: workoutTemplates.name,
+          programId: workoutTemplates.programId,
+          meso: mesocycles,
+        })
+        .from(plannedWorkouts)
+        .innerJoin(workoutTemplates, eq(workoutTemplates.id, plannedWorkouts.workoutTemplateId))
+        .leftJoin(mesocycles, eq(mesocycles.id, plannedWorkouts.mesocycleId))
+        .where(
+          and(
+            eq(plannedWorkouts.userId, userId),
+            ...(opts.from ? [gte(plannedWorkouts.date, opts.from)] : []),
+            ...(opts.to ? [lte(plannedWorkouts.date, opts.to)] : []),
+            ...(opts.ids ? [inArray(plannedWorkouts.id, [...opts.ids])] : []),
+          ),
+        )
+        .orderBy(asc(plannedWorkouts.date));
+      const ids = rows.map((r) => r.planned.id);
+      const sessions = ids.length
+        ? await db
+            .select({ id: workoutSessions.id, plannedWorkoutId: workoutSessions.plannedWorkoutId })
+            .from(workoutSessions)
+            .where(and(liveSession(userId), inArray(workoutSessions.plannedWorkoutId, ids)))
+        : [];
+      return rows.map((r) => ({
+        ...r,
+        sessionId: sessions.find((x) => x.plannedWorkoutId === r.planned.id)?.id ?? null,
+      }));
+    },
+
+    async updatePlanned(
+      userId: string,
+      id: string,
+      values: Partial<typeof plannedWorkouts.$inferInsert>,
+    ) {
+      const rows = await db
+        .update(plannedWorkouts)
+        .set({ ...values, updatedAt: new Date() })
+        .where(and(eq(plannedWorkouts.userId, userId), eq(plannedWorkouts.id, id)))
+        .returning({ id: plannedWorkouts.id });
+      return rows.length > 0;
+    },
+
     async exerciseRecords(userId: string, exerciseId: string) {
       return db
         .select()
@@ -569,5 +697,10 @@ export function createTrainingRepository(db: Database) {
     },
   };
 }
+
+export type PlannedRow = Awaited<
+  ReturnType<ReturnType<typeof createTrainingRepository>['listPlanned']>
+>[number];
+export type { MesocycleRow, PlannedWorkoutRow };
 
 export type TrainingRepository = ReturnType<typeof createTrainingRepository>;

@@ -200,6 +200,26 @@ export function createProfileService({ repo, hasWeighIn }: ProfileServiceDeps) {
       };
     },
 
+    /** Agenda (ADR-043): dias de academia, dias de esporte e minutos por sessão. */
+    async scheduleContext(userId: string) {
+      const [avail, sportsList] = await Promise.all([
+        repo.listAvailability(userId),
+        repo.listSports(userId),
+      ]);
+      const gym = avail.filter((a) => a.kind === 'gym' || a.kind === 'any');
+      const sportDays = [
+        ...avail.filter((a) => a.kind === 'sport').map((a) => a.weekday),
+        ...sportsList.flatMap((sp) => (sp.weekdayHint === null ? [] : [sp.weekdayHint])),
+      ];
+      const minutes = gym.map((a) => a.maxMinutes);
+      return {
+        gymDays: [...new Set(gym.map((a) => a.weekday))].sort((a, b) => a - b),
+        sportDays: [...new Set(sportDays)],
+        sports: sportsList.map((sp) => ({ sportCode: sp.sportCode, weekday: sp.weekdayHint })),
+        minutesPerSession: minutes.length > 0 ? Math.min(...minutes) : 60,
+      };
+    },
+
     /** Sessões de musculação planejadas (ADR-016). */
     async gymSessionMinutes(userId: string) {
       return (await repo.listAvailability(userId))

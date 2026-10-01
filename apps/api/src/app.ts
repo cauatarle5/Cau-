@@ -10,6 +10,7 @@ import {
 } from 'fastify-type-provider-zod';
 
 import { createFoodParser, type FoodParser } from '@atlas/ai';
+import { sessionLoad } from '@atlas/core';
 import type { Database } from '@atlas/db';
 
 import type { AppConfig } from './config';
@@ -37,6 +38,12 @@ import {
 import { createProfileRepository, createProfileService, profileRoutes } from './modules/profile';
 import { createRecipesRepository, createRecipesService, recipesRoutes } from './modules/recipes';
 import {
+  createRecoveryRepository,
+  createRecoveryService,
+  recoveryRoutes,
+} from './modules/recovery';
+import {
+  createAgendaService,
   createTrainingRepository,
   createTrainingService,
   trainingRoutes,
@@ -121,9 +128,28 @@ export async function buildApp({ config, db, parser }: BuildAppOptions): Promise
     repo: createExercisesRepository(db),
     profile: profileService,
   });
-  const trainingService = createTrainingService({
-    repo: createTrainingRepository(db),
+  const trainingRepo = createTrainingRepository(db);
+  // Treino ↔ recuperação se usam mutuamente: ligação tardia por função.
+  const recoveryService = createRecoveryService({
+    repo: createRecoveryRepository(db),
+    profile: profileService,
+    sessionLoads: async (userId, from, to) =>
+      (await trainingRepo.sessionLoads(userId, from, to)).map((r) => ({
+        date: r.date,
+        au: sessionLoad(r.rpe, r.minutes),
+      })),
+  });
+  const agendaService = createAgendaService({
+    repo: trainingRepo,
     exercises: exercisesService,
+    profile: profileService,
+    recovery: () => recoveryService,
+  });
+  const trainingService = createTrainingService({
+    repo: trainingRepo,
+    exercises: exercisesService,
+    agenda: () => agendaService,
+    recovery: () => recoveryService,
   });
   const analyticsService = createAnalyticsService({
     training: trainingService,
@@ -161,7 +187,8 @@ export async function buildApp({ config, db, parser }: BuildAppOptions): Promise
       recipesRoutes(v1, { service: recipesService });
       mealPlansRoutes(v1, { service: mealPlansService, meals: mealsService });
       exercisesRoutes(v1, { service: exercisesService });
-      trainingRoutes(v1, { service: trainingService });
+      trainingRoutes(v1, { service: trainingService, agenda: agendaService });
+      recoveryRoutes(v1, { service: recoveryService });
       analyticsRoutes(v1, { service: analyticsService });
       done();
     },
