@@ -1,5 +1,5 @@
 import { apiRequest } from '@/lib/api';
-import {
+import type {
   complementListSchema,
   dayPlanSchema,
   mealListResponseSchema,
@@ -8,38 +8,43 @@ import {
   mealTemplateSchema,
   substitutionListSchema,
   suggestMealSchema,
-  type MealItemInput,
-  type MealSlot,
 } from '@atlas/schemas';
+import { type MealItemInput, type MealSlot } from '@atlas/schemas';
 
 export const planningApi = {
-  dayPlan: (date: string) => apiRequest(`/nutrition/day-plan?date=${date}`, dayPlanSchema),
+  dayPlan: (date: string) => apiRequest<typeof dayPlanSchema>(`/nutrition/day-plan?date=${date}`),
   planMeal: (date: string, slot: MealSlot, items: MealItemInput[]) =>
-    apiRequest('/meals', mealSchema, {
+    apiRequest<typeof mealSchema>('/meals', {
       method: 'POST',
       body: { date, slot, status: 'planned', items },
     }),
   addItems: (mealId: string, items: MealItemInput[]) =>
-    apiRequest(`/meals/${mealId}/items`, mealSchema, { method: 'POST', body: { items } }),
+    apiRequest<typeof mealSchema>(`/meals/${mealId}/items`, { method: 'POST', body: { items } }),
   updateItem: (itemId: string, body: { foodId?: string; quantity: number; unit: 'g' }) =>
-    apiRequest(`/meal-items/${itemId}`, mealSchema, { method: 'PATCH', body }),
+    apiRequest<typeof mealSchema>(`/meal-items/${itemId}`, { method: 'PATCH', body }),
   logMeal: (mealId: string) =>
-    apiRequest(`/meals/${mealId}/log`, mealSchema, { method: 'POST', body: {} }),
+    apiRequest<typeof mealSchema>(`/meals/${mealId}/log`, { method: 'POST', body: {} }),
   copy: (body: { toDate: string; fromDate?: string; templateId?: string }) =>
-    apiRequest('/meals/copy', mealListResponseSchema, { method: 'POST', body }),
-  templates: () => apiRequest('/meal-templates', mealTemplateListSchema),
+    apiRequest<typeof mealListResponseSchema>('/meals/copy', { method: 'POST', body }),
+  templates: () => apiRequest<typeof mealTemplateListSchema>('/meal-templates'),
   saveDay: (name: string, date: string) =>
-    apiRequest('/meal-templates', mealTemplateSchema, { method: 'POST', body: { name, date } }),
+    apiRequest<typeof mealTemplateSchema>('/meal-templates', {
+      method: 'POST',
+      body: { name, date },
+    }),
   substitutions: (itemId: string, nutrient: 'kcal' | 'fatG' | 'carbsG') =>
-    apiRequest('/nutrition/substitutions', substitutionListSchema, {
+    apiRequest<typeof substitutionListSchema>('/nutrition/substitutions', {
       method: 'POST',
       body: { itemId, nutrient },
     }),
   complements: (date: string, nutrient: 'proteinG' | 'fiberG') =>
-    apiRequest('/nutrition/complements', complementListSchema, {
+    apiRequest<typeof complementListSchema>('/nutrition/complements', {
       method: 'POST',
       body: { date, nutrient },
     }),
   suggest: (date: string) =>
-    apiRequest('/nutrition/suggest-meal', suggestMealSchema, { method: 'POST', body: { date } }),
+    apiRequest<typeof suggestMealSchema>('/nutrition/suggest-meal', {
+      method: 'POST',
+      body: { date },
+    }),
 };

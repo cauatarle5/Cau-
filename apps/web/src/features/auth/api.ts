@@ -1,11 +1,12 @@
 import { apiRequest } from '@/lib/api';
-import { authUserResponseSchema, type LoginInput, type RegisterInput } from '@atlas/schemas';
+import type { authUserResponseSchema } from '@atlas/schemas';
+import { type LoginInput, type RegisterInput } from '@atlas/schemas';
 
 export const authApi = {
-  me: () => apiRequest('/auth/me', authUserResponseSchema),
+  me: () => apiRequest<typeof authUserResponseSchema>('/auth/me'),
   register: (input: RegisterInput) =>
-    apiRequest('/auth/register', authUserResponseSchema, { method: 'POST', body: input }),
+    apiRequest<typeof authUserResponseSchema>('/auth/register', { method: 'POST', body: input }),
   login: (input: LoginInput) =>
-    apiRequest('/auth/login', authUserResponseSchema, { method: 'POST', body: input }),
-  logout: () => apiRequest('/auth/logout', null, { method: 'POST' }),
+    apiRequest<typeof authUserResponseSchema>('/auth/login', { method: 'POST', body: input }),
+  logout: () => apiRequest<null>('/auth/logout', { method: 'POST' }),
 };

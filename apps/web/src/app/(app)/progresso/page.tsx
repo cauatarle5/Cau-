@@ -1,11 +1,13 @@
 import { PageHeader } from '@/components/empty-state';
 import { MeasurementList } from '@/features/body/components/measurement-list';
 import { WeighInForm } from '@/features/body/components/weigh-in-form';
-import { WeightChart } from '@/features/body/components/weight-chart';
 import { WeeklySummaryCard } from '@/features/coach/components/weekly-summary-card';
+import {
+  ExerciseProgressCard,
+  LoadCard,
+  WeightChart,
+} from '@/features/progress/components/lazy-cards';
 import { ProgressDashboard } from '@/features/progress/components/progress-dashboard';
-import { LoadCard } from '@/features/recovery/components/load-card';
-import { ExerciseProgressCard } from '@/features/training/components/exercise-progress-card';
 import { MuscleVolumeCard } from '@/features/training/components/muscle-volume-card';
 
 export default function ProgressPage() {

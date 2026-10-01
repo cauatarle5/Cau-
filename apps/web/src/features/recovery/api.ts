@@ -1,5 +1,5 @@
 import { apiRequest } from '@/lib/api';
-import {
+import type {
   activityListSchema,
   activitySchema,
   adaptedWorkoutSchema,
@@ -9,34 +9,32 @@ import {
   programDraftSchema,
   recoveryLoadSchema,
   sessionSchema,
-  type ActivityInput,
-  type CheckinInput,
 } from '@atlas/schemas';
+import { type ActivityInput, type CheckinInput } from '@atlas/schemas';
 
 export const recoveryApi = {
-  checkin: (date: string) => apiRequest(`/checkins/${date}`, checkinSchema),
+  checkin: (date: string) => apiRequest<typeof checkinSchema>(`/checkins/${date}`),
   putCheckin: (date: string, body: CheckinInput) =>
-    apiRequest(`/checkins/${date}`, checkinSchema, { method: 'PUT', body }),
+    apiRequest<typeof checkinSchema>(`/checkins/${date}`, { method: 'PUT', body }),
   activities: (from: string, to: string) =>
-    apiRequest(`/activities?from=${from}&to=${to}`, activityListSchema),
+    apiRequest<typeof activityListSchema>(`/activities?from=${from}&to=${to}`),
   createActivity: (body: ActivityInput) =>
-    apiRequest('/activities', activitySchema, { method: 'POST', body }),
+    apiRequest<typeof activitySchema>('/activities', { method: 'POST', body }),
   load: (from: string, to: string) =>
-    apiRequest(`/recovery/load?from=${from}&to=${to}`, recoveryLoadSchema),
+    apiRequest<typeof recoveryLoadSchema>(`/recovery/load?from=${from}&to=${to}`),
   planned: (from: string, to: string) =>
-    apiRequest(`/planned-workouts?from=${from}&to=${to}`, plannedWorkoutListSchema),
+    apiRequest<typeof plannedWorkoutListSchema>(`/planned-workouts?from=${from}&to=${to}`),
   patchPlanned: (id: string, body: { date?: string; status?: 'planned' | 'skipped' }) =>
-    apiRequest(`/planned-workouts/${id}`, plannedWorkoutSchema, { method: 'PATCH', body }),
+    apiRequest<typeof plannedWorkoutSchema>(`/planned-workouts/${id}`, { method: 'PATCH', body }),
   adapted: (id: string, redChoice?: 'light' | 'rest') =>
-    apiRequest(
+    apiRequest<typeof adaptedWorkoutSchema>(
       `/planned-workouts/${id}/adapted${redChoice ? `?redChoice=${redChoice}` : ''}`,
-      adaptedWorkoutSchema,
     ),
   startPlanned: (id: string, plannedWorkoutId: string, redChoice?: 'light' | 'rest') =>
-    apiRequest('/sessions', sessionSchema, {
+    apiRequest<typeof sessionSchema>('/sessions', {
       method: 'POST',
       body: { id, plannedWorkoutId, ...(redChoice ? { redChoice } : {}) },
     }),
   generate: () =>
-    apiRequest('/programs/generate', programDraftSchema, { method: 'POST', body: {} }),
+    apiRequest<typeof programDraftSchema>('/programs/generate', { method: 'POST', body: {} }),
 };

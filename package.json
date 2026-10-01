@@ -21,7 +21,8 @@
     "db:seed": "pnpm --filter @atlas/db db:seed",
     "db:seed:demo": "pnpm --filter @atlas/api db:seed:demo",
     "ai:eval": "pnpm --filter @atlas/ai ai:eval",
-    "ai:eval:coach": "pnpm --filter @atlas/api ai:eval:coach"
+    "ai:eval:coach": "pnpm --filter @atlas/api ai:eval:coach",
+    "perf": "pnpm --filter @atlas/web perf"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

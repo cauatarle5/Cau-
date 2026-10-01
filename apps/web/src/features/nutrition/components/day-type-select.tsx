@@ -2,7 +2,8 @@
 
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
-import { dayTypeSchema } from '@atlas/schemas';
+import { keysOf } from '@/lib/utils';
+import { type DayTypeDto } from '@atlas/schemas';
 
 import { useDaySummary, useSetDayType } from '../hooks/use-nutrition';
 import { DAY_TYPE_LABELS } from '../labels';
@@ -24,10 +25,10 @@ export function DayTypeSelect({ date }: { date: string }) {
         value={current}
         disabled={set.isPending}
         onChange={(e) => {
-          set.mutate({ date, dayType: dayTypeSchema.parse(e.target.value) });
+          set.mutate({ date, dayType: e.target.value as DayTypeDto });
         }}
       >
-        {dayTypeSchema.options.map((d) => (
+        {keysOf(DAY_TYPE_LABELS).map((d) => (
           <option key={d} value={d}>
             {DAY_TYPE_LABELS[d]}
           </option>

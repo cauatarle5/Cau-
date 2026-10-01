@@ -21,6 +21,7 @@ export const sportCodeSchema = z.enum([
   'swimming',
   'other',
 ]);
+export type SportCode = z.infer<typeof sportCodeSchema>;
 export const availabilityKindSchema = z.enum(['gym', 'sport', 'any']);
 export const equipmentLocationSchema = z.enum(['gym', 'home', 'other']);
 

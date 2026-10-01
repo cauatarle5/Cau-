@@ -6,13 +6,7 @@ import { create } from 'zustand';
 import { kvDel, kvGet, kvSet, onOfflineUserChange } from '@/offline/kv';
 import { enqueue, onSynced, useSyncStore, type QueuedOp } from '@/offline/queue';
 import { setRowCount } from '@atlas/core';
-import {
-  sessionSchema,
-  setResultSchema,
-  type ExerciseDto,
-  type SessionDto,
-  type SessionExerciseDto,
-} from '@atlas/schemas';
+import type { ExerciseDto, SessionDto, SessionExerciseDto, SetResult } from '@atlas/schemas';
 
 import { trainingApi } from './api';
 
@@ -320,24 +314,22 @@ function handleSynced(op: QueuedOp, response: unknown) {
   const session = get().session;
   if (!session) return;
   if (op.method === 'POST' && /^\/session-exercises\/[^/]+\/sets$/.test(op.path)) {
-    const parsed = setResultSchema.safeParse(response);
-    if (!parsed.success || parsed.data.records.length === 0) return;
-    const se = session.exercises.find((e) => e.id === parsed.data.set.sessionExerciseId);
+    // Resposta já validada pela API (ADR-062): só confere a forma esperada da rota.
+    const result = response as Partial<SetResult> | null;
+    if (!result?.set || !Array.isArray(result.records) || result.records.length === 0) return;
+    const { set, records } = result as SetResult;
+    const se = session.exercises.find((e) => e.id === set.sessionExerciseId);
     useActiveWorkout.setState({
       records: [
-        ...get().records.filter((r) => r.setId !== parsed.data.set.id),
-        {
-          setId: parsed.data.set.id,
-          exerciseName: se?.exerciseName ?? '',
-          types: parsed.data.records.map((r) => r.type),
-        },
+        ...get().records.filter((r) => r.setId !== set.id),
+        { setId: set.id, exerciseName: se?.exerciseName ?? '', types: records.map((r) => r.type) },
       ],
     });
     return;
   }
-  const parsed = sessionSchema.safeParse(response);
-  if (!parsed.success || parsed.data.id !== session.id) return;
-  const server = new Map(parsed.data.exercises.map((e) => [e.id, e]));
+  const fromApi = response as Partial<SessionDto> | null;
+  if (fromApi?.id !== session.id || !Array.isArray(fromApi.exercises)) return;
+  const server = new Map(fromApi.exercises.map((e) => [e.id, e]));
   update((s) => ({
     ...s,
     exercises: s.exercises.map((e) => {

@@ -8,8 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { SPORT_LABELS } from '@/features/profile/labels';
+import { keysOf } from '@/lib/utils';
 import { addDays } from '@atlas/core';
-import { sportCodeSchema } from '@atlas/schemas';
+import { type SportCode } from '@atlas/schemas';
 
 import { useCreateActivity } from '../hooks';
 import { DEMAND_LABELS } from '../labels';
@@ -18,7 +19,7 @@ import { DEMAND_LABELS } from '../labels';
 export function ActivityForm({ today }: { today: string }) {
   const uid = useId();
   const create = useCreateActivity();
-  const [sport, setSport] = useState<(typeof sportCodeSchema.options)[number]>('football');
+  const [sport, setSport] = useState<SportCode>('football');
   const [when, setWhen] = useState<'today' | 'yesterday'>('today');
   const [minutes, setMinutes] = useState('60');
   const [rpe, setRpe] = useState(7);
@@ -40,10 +41,10 @@ export function ActivityForm({ today }: { today: string }) {
             id={`${uid}-sport`}
             value={sport}
             onChange={(e) => {
-              setSport(sportCodeSchema.parse(e.target.value));
+              setSport(e.target.value as SportCode);
             }}
           >
-            {sportCodeSchema.options.map((s) => (
+            {keysOf(SPORT_LABELS).map((s) => (
               <option key={s} value={s}>
                 {SPORT_LABELS[s]}
               </option>

@@ -8,7 +8,7 @@ import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ApiError } from '@/lib/api';
-import { programInputSchema, type ExerciseDto } from '@atlas/schemas';
+import { type ExerciseDto } from '@atlas/schemas';
 
 import { useCreateProgram } from '../hooks/use-training';
 
@@ -54,6 +54,8 @@ export function ProgramBuilder({ onDone }: { onDone: () => void }) {
         })),
       })),
     };
+    // Validação do formulário: o schema (e o zod) só carregam ao salvar (ADR-062).
+    const { programInputSchema } = await import('@atlas/schemas');
     const parsed = programInputSchema.safeParse(input);
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? 'Verifique os campos.');

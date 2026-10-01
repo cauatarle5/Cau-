@@ -478,3 +478,23 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
   - `DELETE /account` exige a senha atual e a palavra `EXCLUIR`, apaga o usuário (todas as FKs para `users` são `on delete cascade`) e limpa o cookie. O web limpa os dados offline do aparelho.
   - Erro `INVALID_PASSWORD` (400).
 - **Consequências:** a exclusão é definitiva e imediata, sem período de carência. Backups antigos ainda contêm os dados até saírem da retenção (14 dias e 8 semanas), e isso fica documentado no roteiro.
+
+## ADR-062: Front sem revalidar respostas (LCP mobile)
+- **Status:** aceita (substitui a parte de validação de respostas da ADR-013)
+- **Contexto:**
+  - A medição da Fase 8 (Pixel 7, CPU 4× mais lenta, Slow 4G) deu LCP de 2,6 a 3,1 s nas telas logadas. O limite é banda: ~340 KB gz de JS antes da hidratação.
+  - O zod clássico, puxado pelo layout raiz só para revalidar respostas, pesa ~96 KB gz (~0,5 s nessa rede).
+  - A API já valida e serializa cada resposta pelo mesmo schema (`fastify-type-provider-zod`), então a revalidação no cliente é redundante.
+- **Decisão:**
+  - `apiRequest<typeof schema>(path, options)`: os schemas entram no front só como tipo (`import type`, apagado no build). O contrato continua vindo dos schemas compartilhados, sem tipo à mão.
+  - O zod fica onde o cliente é a origem ou onde não há serializador da API no meio:
+    - formulários (`zodResolver`);
+    - eventos SSE do Coach;
+    - respostas da fila offline do treino.
+    Tudo isso carregado só nas telas que usam.
+  - Erros RFC 7807 são reconhecidos por checagem estrutural leve.
+  - `@atlas/schemas` declara `sideEffects` apenas para `locale.ts`, que importa só o locale `pt` do zod (o namespace `z.locales` trazia todos).
+  - Sessão e perfil são pedidos por um script inline no `<head>`, em paralelo com o download do JS.
+- **Consequências:**
+  - Uma resposta fora do contrato não é mais barrada no cliente. O teste de contrato fica na API (serializador) e nos testes de integração.
+  - O ganho é medido por `pnpm perf`.

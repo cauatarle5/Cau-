@@ -1,29 +1,28 @@
-import { ApiError, apiRequest } from '@/lib/api';
-import {
+import { ApiError, apiRequest, problemFrom } from '@/lib/api';
+import type {
   aiStatusSchema,
-  chatEventSchema,
   conversationDetailSchema,
   conversationListSchema,
   conversationSchema,
-  problemDetailsSchema,
   proposalListSchema,
   proposalSchema,
   weeklySummaryResponseSchema,
-  type ChatEvent,
 } from '@atlas/schemas';
+import type { ChatEvent } from '@atlas/schemas';
 
 export const coachApi = {
-  status: () => apiRequest('/ai/status', aiStatusSchema),
-  conversations: () => apiRequest('/ai/conversations', conversationListSchema),
-  conversation: (id: string) => apiRequest(`/ai/conversations/${id}`, conversationDetailSchema),
+  status: () => apiRequest<typeof aiStatusSchema>('/ai/status'),
+  conversations: () => apiRequest<typeof conversationListSchema>('/ai/conversations'),
+  conversation: (id: string) =>
+    apiRequest<typeof conversationDetailSchema>(`/ai/conversations/${id}`),
   createConversation: () =>
-    apiRequest('/ai/conversations', conversationSchema, { method: 'POST', body: {} }),
-  pendingProposals: () => apiRequest('/ai/proposals?status=pending', proposalListSchema),
+    apiRequest<typeof conversationSchema>('/ai/conversations', { method: 'POST', body: {} }),
+  pendingProposals: () => apiRequest<typeof proposalListSchema>('/ai/proposals?status=pending'),
   accept: (id: string) =>
-    apiRequest(`/ai/proposals/${id}/accept`, proposalSchema, { method: 'POST' }),
+    apiRequest<typeof proposalSchema>(`/ai/proposals/${id}/accept`, { method: 'POST' }),
   reject: (id: string) =>
-    apiRequest(`/ai/proposals/${id}/reject`, proposalSchema, { method: 'POST' }),
-  weeklySummary: () => apiRequest('/ai/weekly-summary', weeklySummaryResponseSchema),
+    apiRequest<typeof proposalSchema>(`/ai/proposals/${id}/reject`, { method: 'POST' }),
+  weeklySummary: () => apiRequest<typeof weeklySummaryResponseSchema>('/ai/weekly-summary'),
 };
 
 /**
@@ -42,19 +41,11 @@ export async function streamMessage(
     body: JSON.stringify({ text }),
   });
   if (!res.ok || !res.body) {
-    const parsed = problemDetailsSchema.safeParse(await res.json().catch(() => null));
-    throw new ApiError(
-      parsed.success
-        ? parsed.data
-        : {
-            type: 'about:blank',
-            title: 'Falha de comunicação',
-            status: res.status,
-            code: 'INTERNAL_ERROR',
-            detail: 'Não foi possível falar com o Coach. Tente novamente.',
-          },
-    );
+    throw new ApiError(await problemFrom(res));
   }
+  // Eventos SSE não passam pelo serializador da API: validados aqui, com o schema carregado só
+  // quando há conversa (ADR-062).
+  const { chatEventSchema } = await import('@atlas/schemas');
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
   let buffer = '';
   let finished = false;

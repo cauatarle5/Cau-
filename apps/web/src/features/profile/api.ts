@@ -1,5 +1,5 @@
 import { apiRequest } from '@/lib/api';
-import {
+import type {
   availabilityResponseSchema,
   equipmentResponseSchema,
   goalCreateResponseSchema,
@@ -8,6 +8,8 @@ import {
   limitationSchema,
   profileResponseSchema,
   sportsResponseSchema,
+} from '@atlas/schemas';
+import {
   type AvailabilityItem,
   type GoalInput,
   type ProfileInput,
@@ -15,23 +17,26 @@ import {
 } from '@atlas/schemas';
 
 export const profileApi = {
-  get: () => apiRequest('/profile', profileResponseSchema),
+  get: () => apiRequest<typeof profileResponseSchema>('/profile'),
   put: (input: ProfileInput) =>
-    apiRequest('/profile', profileResponseSchema, { method: 'PUT', body: input }),
-  availability: () => apiRequest('/availability', availabilityResponseSchema),
+    apiRequest<typeof profileResponseSchema>('/profile', { method: 'PUT', body: input }),
+  availability: () => apiRequest<typeof availabilityResponseSchema>('/availability'),
   putAvailability: (items: AvailabilityItem[]) =>
-    apiRequest('/availability', availabilityResponseSchema, { method: 'PUT', body: { items } }),
-  equipment: () => apiRequest('/equipment', equipmentResponseSchema),
+    apiRequest<typeof availabilityResponseSchema>('/availability', {
+      method: 'PUT',
+      body: { items },
+    }),
+  equipment: () => apiRequest<typeof equipmentResponseSchema>('/equipment'),
   putEquipment: (items: { equipmentCode: string; location: 'gym' | 'home' | 'other' }[]) =>
-    apiRequest('/equipment', equipmentResponseSchema, { method: 'PUT', body: { items } }),
-  limitations: () => apiRequest('/limitations', limitationListSchema),
+    apiRequest<typeof equipmentResponseSchema>('/equipment', { method: 'PUT', body: { items } }),
+  limitations: () => apiRequest<typeof limitationListSchema>('/limitations'),
   createLimitation: (input: { bodyRegion: string; severity: number; description?: string }) =>
-    apiRequest('/limitations', limitationSchema, { method: 'POST', body: input }),
-  deleteLimitation: (id: string) => apiRequest(`/limitations/${id}`, null, { method: 'DELETE' }),
-  sports: () => apiRequest('/sports', sportsResponseSchema),
+    apiRequest<typeof limitationSchema>('/limitations', { method: 'POST', body: input }),
+  deleteLimitation: (id: string) => apiRequest<null>(`/limitations/${id}`, { method: 'DELETE' }),
+  sports: () => apiRequest<typeof sportsResponseSchema>('/sports'),
   putSports: (items: SportItem[]) =>
-    apiRequest('/sports', sportsResponseSchema, { method: 'PUT', body: { items } }),
-  goals: () => apiRequest('/goals', goalListSchema),
+    apiRequest<typeof sportsResponseSchema>('/sports', { method: 'PUT', body: { items } }),
+  goals: () => apiRequest<typeof goalListSchema>('/goals'),
   createGoal: (input: GoalInput) =>
-    apiRequest('/goals', goalCreateResponseSchema, { method: 'POST', body: input }),
+    apiRequest<typeof goalCreateResponseSchema>('/goals', { method: 'POST', body: input }),
 };

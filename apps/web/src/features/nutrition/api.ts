@@ -1,5 +1,5 @@
 import { apiRequest } from '@/lib/api';
-import {
+import type {
   daySummarySchema,
   foodSchema,
   foodSearchResponseSchema,
@@ -8,30 +8,29 @@ import {
   parseResponseSchema,
   targetsResponseSchema,
   waterLogSchema,
-  type CustomFoodInput,
-  type DayTypeDto,
-  type MealCreateInput,
 } from '@atlas/schemas';
+import { type CustomFoodInput, type DayTypeDto, type MealCreateInput } from '@atlas/schemas';
 
 export const nutritionApi = {
   targets: (from: string, to: string) =>
-    apiRequest(`/nutrition/targets?from=${from}&to=${to}`, targetsResponseSchema),
+    apiRequest<typeof targetsResponseSchema>(`/nutrition/targets?from=${from}&to=${to}`),
   setDayType: (date: string, dayType: DayTypeDto) =>
-    apiRequest(`/nutrition/targets/${date}/day-type`, targetsResponseSchema, {
+    apiRequest<typeof targetsResponseSchema>(`/nutrition/targets/${date}/day-type`, {
       method: 'PUT',
       body: { dayType },
     }),
-  summary: (date: string) => apiRequest(`/nutrition/day-summary?date=${date}`, daySummarySchema),
+  summary: (date: string) =>
+    apiRequest<typeof daySummarySchema>(`/nutrition/day-summary?date=${date}`),
   parse: (text: string) =>
-    apiRequest('/nutrition/parse', parseResponseSchema, { method: 'POST', body: { text } }),
-  meals: (date: string) => apiRequest(`/meals?date=${date}`, mealListSchema),
+    apiRequest<typeof parseResponseSchema>('/nutrition/parse', { method: 'POST', body: { text } }),
+  meals: (date: string) => apiRequest<typeof mealListSchema>(`/meals?date=${date}`),
   createMeal: (input: MealCreateInput) =>
-    apiRequest('/meals', mealSchema, { method: 'POST', body: input }),
-  deleteItem: (id: string) => apiRequest(`/meal-items/${id}`, null, { method: 'DELETE' }),
+    apiRequest<typeof mealSchema>('/meals', { method: 'POST', body: input }),
+  deleteItem: (id: string) => apiRequest<null>(`/meal-items/${id}`, { method: 'DELETE' }),
   addWater: (date: string, ml: number) =>
-    apiRequest('/water-logs', waterLogSchema, { method: 'POST', body: { date, ml } }),
+    apiRequest<typeof waterLogSchema>('/water-logs', { method: 'POST', body: { date, ml } }),
   searchFoods: (q: string) =>
-    apiRequest(`/foods/search?q=${encodeURIComponent(q)}&limit=8`, foodSearchResponseSchema),
+    apiRequest<typeof foodSearchResponseSchema>(`/foods/search?q=${encodeURIComponent(q)}&limit=8`),
   createFood: (input: CustomFoodInput) =>
-    apiRequest('/foods', foodSchema, { method: 'POST', body: input }),
+    apiRequest<typeof foodSchema>('/foods', { method: 'POST', body: input }),
 };

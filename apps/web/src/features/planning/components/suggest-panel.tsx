@@ -10,7 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { SLOT_LABELS } from '@/features/nutrition/labels';
 import { formatNumber } from '@/lib/format';
-import { mealSlotSchema, type MealDto, type MealSlot } from '@atlas/schemas';
+import { keysOf } from '@/lib/utils';
+import { type MealDto, type MealSlot } from '@atlas/schemas';
 
 import { planningApi } from '../api';
 import { usePlanMutation } from '../hooks';
@@ -71,10 +72,10 @@ export function SuggestPanel({
           className="w-auto"
           value={slot}
           onChange={(e) => {
-            setSlot(mealSlotSchema.parse(e.target.value));
+            setSlot(e.target.value as MealSlot);
           }}
         >
-          {mealSlotSchema.options.map((s) => (
+          {keysOf(SLOT_LABELS).map((s) => (
             <option key={s} value={s}>
               {SLOT_LABELS[s]}
             </option>

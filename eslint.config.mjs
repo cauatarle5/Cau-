@@ -68,8 +68,13 @@ export default tseslint.config(
     extends: [tseslint.configs.disableTypeChecked],
   },
   {
-    files: ['**/scripts/**', '**/*.config.{ts,mjs,js}'],
+    files: ['**/scripts/**', '**/*.config.{ts,mjs,js}', 'apps/web/perf/**'],
     rules: { 'no-console': 'off' },
+  },
+  {
+    // Service worker escrito à mão (ADR-060).
+    files: ['apps/web/public/sw.js'],
+    languageOptions: { globals: { ...globals.serviceworker } },
   },
   prettier,
 );

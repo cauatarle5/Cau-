@@ -1,22 +1,26 @@
 import { apiRequest } from '@/lib/api';
-import {
+import type {
   bodyMeasurementCreateResponseSchema,
   bodyMeasurementListSchema,
   bodyMeasurementSchema,
   bodyTrendResponseSchema,
-  type BodyMeasurementInput,
 } from '@atlas/schemas';
+import { type BodyMeasurementInput } from '@atlas/schemas';
 
 export const bodyApi = {
-  list: (limit = 20) => apiRequest(`/body-measurements?limit=${limit}`, bodyMeasurementListSchema),
+  list: (limit = 20) =>
+    apiRequest<typeof bodyMeasurementListSchema>(`/body-measurements?limit=${limit}`),
   create: (input: BodyMeasurementInput) =>
-    apiRequest('/body-measurements', bodyMeasurementCreateResponseSchema, {
+    apiRequest<typeof bodyMeasurementCreateResponseSchema>('/body-measurements', {
       method: 'POST',
       body: input,
     }),
   patch: (id: string, input: Partial<BodyMeasurementInput>) =>
-    apiRequest(`/body-measurements/${id}`, bodyMeasurementSchema, { method: 'PATCH', body: input }),
-  remove: (id: string) => apiRequest(`/body-measurements/${id}`, null, { method: 'DELETE' }),
+    apiRequest<typeof bodyMeasurementSchema>(`/body-measurements/${id}`, {
+      method: 'PATCH',
+      body: input,
+    }),
+  remove: (id: string) => apiRequest<null>(`/body-measurements/${id}`, { method: 'DELETE' }),
   trend: (from: string, to: string) =>
-    apiRequest(`/body/trend?from=${from}&to=${to}`, bodyTrendResponseSchema),
+    apiRequest<typeof bodyTrendResponseSchema>(`/body/trend?from=${from}&to=${to}`),
 };

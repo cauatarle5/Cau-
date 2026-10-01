@@ -1,16 +1,6 @@
 'use client';
 
-import {
-  Bar,
-  CartesianGrid,
-  ComposedChart,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import dynamic from 'next/dynamic';
 
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import { DAY_TYPE_LABELS } from '@/features/nutrition/labels';
@@ -21,6 +11,12 @@ import type { AnalyticsCompare, AnalyticsSummary } from '@atlas/schemas';
 import { maybe, signed } from '../format';
 
 import { BodyMap, STATUS_FILL, STATUS_LABELS } from './body-map';
+
+// Recharts só carrega quando o gráfico aparece: fora do JS inicial da tela (LCP, Fase 8).
+const ProteinChart = dynamic(() => import('./charts').then((m) => m.ProteinChart), { ssr: false });
+const RecoveryChart = dynamic(() => import('./charts').then((m) => m.RecoveryChart), {
+  ssr: false,
+});
 
 type Summary = AnalyticsSummary;
 
@@ -176,7 +172,11 @@ export function StrengthSection({ data }: { data: Summary }) {
               <span className="shrink-0 tabular-nums">
                 {formatNumber(e.firstE1rm, 1)} → {formatNumber(e.lastE1rm, 1)} kg{' '}
                 <span
-                  className={cn(e.changePct > 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground')}
+                  className={cn(
+                    e.changePct > 0
+                      ? 'text-emerald-700 dark:text-emerald-400'
+                      : 'text-muted-foreground',
+                  )}
                 >
                   ({signed(e.changePct, 1, '%')})
                 </span>
@@ -352,22 +352,7 @@ export function NutritionSection({ data }: { data: Summary }) {
       ) : null}
       {rows.length > 1 ? (
         <div className="h-40" role="img" aria-label="Proteína diária e meta">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={rows} margin={{ left: -16, right: 8, top: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(v) => `${formatNumber(Number(v))} g`} />
-              <Bar dataKey="proteina" name="Proteína" fill="var(--color-primary)" />
-              <Line
-                dataKey="meta"
-                name="Meta"
-                stroke="var(--muted-foreground)"
-                strokeDasharray="4 3"
-                dot={false}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
+          <ProteinChart rows={rows} />
         </div>
       ) : null}
     </Card>
@@ -395,30 +380,7 @@ export function RecoverySection({ data }: { data: Summary }) {
       </dl>
       {rows.length > 1 ? (
         <div className="h-44" role="img" aria-label="Prontidão e sono por dia">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={rows} margin={{ left: -16, right: 8, top: 8 }}>
-              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-              <YAxis yAxisId="r" domain={[0, 100]} tick={{ fontSize: 11 }} />
-              <YAxis yAxisId="s" orientation="right" domain={[0, 12]} tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Line
-                yAxisId="r"
-                dataKey="prontidao"
-                name="Prontidão"
-                stroke="var(--color-primary)"
-                dot={false}
-                connectNulls
-              />
-              <Line
-                yAxisId="s"
-                dataKey="sono"
-                name="Sono (h)"
-                stroke="var(--muted-foreground)"
-                dot={false}
-                connectNulls
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <RecoveryChart rows={rows} />
         </div>
       ) : null}
     </Card>

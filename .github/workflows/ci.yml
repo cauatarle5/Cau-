@@ -68,6 +68,8 @@ jobs:
       - run: pnpm db:seed:demo
       - run: pnpm --filter @atlas/web exec playwright install --with-deps chromium
       - run: pnpm test:e2e
+      # LCP < 2,5 s no celular (4× CPU, Slow 4G) nas telas principais (Fase 8, ADR-062).
+      - run: pnpm perf
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

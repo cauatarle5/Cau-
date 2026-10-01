@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 
+import { PREFETCH_SCRIPT } from '@/lib/prefetch';
+
 import './globals.css';
 import { Providers } from './providers';
 
@@ -24,6 +26,9 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: PREFETCH_SCRIPT }} />
+      </head>
       <body className="min-h-dvh font-sans antialiased">
         <Providers>{children}</Providers>
       </body>

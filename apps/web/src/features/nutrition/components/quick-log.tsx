@@ -9,9 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { ApiError } from '@/lib/api';
 import { formatNumber } from '@/lib/format';
-import { cn } from '@/lib/utils';
+import { cn, keysOf } from '@/lib/utils';
 import { suggestSlot, type FoodUnit } from '@atlas/core';
-import { mealSlotSchema, type MealSlot } from '@atlas/schemas';
+import { type MealSlot } from '@atlas/schemas';
 
 import { useMealReview, type ReviewedItem } from '../hooks/use-meal-review';
 import { useCreateMeal, useParseMeal } from '../hooks/use-nutrition';
@@ -288,10 +288,10 @@ export function QuickLog({ date, compact = false }: { date: string; compact?: bo
               aria-label="Refeição"
               value={slot}
               onChange={(e) => {
-                setSlot(mealSlotSchema.parse(e.target.value));
+                setSlot(e.target.value as MealSlot);
               }}
             >
-              {mealSlotSchema.options.map((s) => (
+              {keysOf(SLOT_LABELS).map((s) => (
                 <option key={s} value={s}>
                   {SLOT_LABELS[s]}
                 </option>
