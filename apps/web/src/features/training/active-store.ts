@@ -192,6 +192,8 @@ export const activeActions = {
       status: 'substituted',
       skipReason: null,
       ghosts: [],
+      // A meta da progressão era do exercício original.
+      target: null,
     }));
     void enqueue({
       method: 'PATCH',
@@ -227,6 +229,7 @@ export const activeActions = {
           restSeconds: 120,
           notes: null,
           ghosts: [],
+          target: null,
           sets: [],
         },
       ],
@@ -235,6 +238,23 @@ export const activeActions = {
       method: 'POST',
       path: `/sessions/${session.id}/exercises`,
       body: { id, exerciseId: exercise.id },
+    });
+  },
+
+  /** Registro de dor durante o exercício (ADR-046), também pela fila offline. */
+  reportPain(exerciseId: string, bodyRegion: string, intensity: number) {
+    const session = get().session;
+    if (!session) return;
+    void enqueue({
+      method: 'POST',
+      path: '/pain-reports',
+      body: {
+        date: session.date,
+        bodyRegion,
+        intensity,
+        sessionId: session.id,
+        duringExerciseId: exerciseId,
+      },
     });
   },
 

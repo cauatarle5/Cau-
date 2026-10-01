@@ -190,6 +190,12 @@ export function ActiveWorkout({ id }: { id: string }) {
         <SyncIndicator />
       </div>
 
+      {session.adapted && session.adaptationNote ? (
+        <p className="rounded-lg bg-muted p-3 text-sm" role="note" data-testid="adaptation-note">
+          {session.adaptationNote}
+        </p>
+      ) : null}
+
       {records.length > 0 && !finished ? (
         <ul className="space-y-1" aria-label="Recordes do treino">
           {records.map((r) => (

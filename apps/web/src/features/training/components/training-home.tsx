@@ -9,22 +9,29 @@ import { uuidv7 } from 'uuidv7';
 import { EmptyState } from '@/components/empty-state';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
+import { ActivityForm } from '@/features/recovery/components/activity-form';
+import { AgendaCard } from '@/features/recovery/components/agenda-card';
+import { GenerateProgram } from '@/features/recovery/components/generate-program';
 import { ApiError } from '@/lib/api';
 import { formatDate, formatNumber } from '@/lib/format';
+import { useToday } from '@/lib/use-today';
 
 import { activeSessionId, loadSession } from '../active-store';
 import { trainingApi, type SessionStartInput } from '../api';
 import { useActivateProgram, usePrograms, useSessions } from '../hooks/use-training';
+
 
 import { ProgramBuilder } from './program-builder';
 import { SyncIndicator } from './sync-indicator';
 
 export function TrainingHome() {
   const router = useRouter();
+  const today = useToday();
   const programs = usePrograms();
   const sessions = useSessions();
   const activate = useActivateProgram();
   const [building, setBuilding] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string>();
   const [resumeId, setResumeId] = useState<string | null>(null);
@@ -76,6 +83,14 @@ export function TrainingHome() {
         </p>
       ) : null}
 
+      {generating ? (
+        <GenerateProgram
+          onDone={() => {
+            setGenerating(false);
+          }}
+        />
+      ) : null}
+
       {building ? (
         <ProgramBuilder
           onDone={() => {
@@ -89,14 +104,24 @@ export function TrainingHome() {
               <CardDescription>Programa ativo</CardDescription>
               <CardTitle>{active.name}</CardTitle>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setBuilding(true);
-              }}
-            >
-              Novo programa
-            </Button>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setGenerating(true);
+                }}
+              >
+                Gerar programa
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setBuilding(true);
+                }}
+              >
+                Novo programa
+              </Button>
+            </div>
           </div>
           <ul className="space-y-2">
             {active.templates.map((t) => (
@@ -134,8 +159,16 @@ export function TrainingHome() {
           <EmptyState title="Nenhum programa ainda">
             Crie seu primeiro programa para registrar séries com um toque.
           </EmptyState>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
+              onClick={() => {
+                setGenerating(true);
+              }}
+            >
+              Gerar programa
+            </Button>
+            <Button
+              variant="outline"
               onClick={() => {
                 setBuilding(true);
               }}
@@ -174,6 +207,9 @@ export function TrainingHome() {
           </ul>
         </Card>
       ) : null}
+
+      <AgendaCard today={today} />
+      <ActivityForm today={today} />
 
       <Card className="space-y-2">
         <CardTitle>Histórico</CardTitle>

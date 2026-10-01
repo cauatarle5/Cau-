@@ -1,10 +1,12 @@
 'use client';
 
-import { Check, Plus, Repeat, SkipForward, X } from 'lucide-react';
+import { Check, HeartPulse, Plus, Repeat, SkipForward, X } from 'lucide-react';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Select } from '@/components/ui/select';
+import { PAIN_REGION_LABELS } from '@/features/recovery/labels';
 import { formatNumber } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useSyncStore } from '@/offline/queue';
@@ -31,10 +33,13 @@ function NextSet({
   previous: SetLogDto | undefined;
 }) {
   const [loadKg, setLoad] = useState<number | null>(
-    previous?.loadKg ?? ghost?.loadKg ?? (exercise.loadType === 'external' ? null : 0),
+    previous?.loadKg ??
+      exercise.target?.loadKg ??
+      ghost?.loadKg ??
+      (exercise.loadType === 'external' ? null : 0),
   );
   const [reps, setReps] = useState<number | null>(
-    previous?.reps ?? ghost?.reps ?? exercise.repMin ?? null,
+    previous?.reps ?? exercise.target?.repMin ?? ghost?.reps ?? exercise.repMin ?? null,
   );
   const [rir, setRir] = useState<number | null>(null);
   const step = exercise.defaultIncrementKg > 0 ? exercise.defaultIncrementKg : 2.5;
@@ -140,6 +145,76 @@ function Substitute({ exercise, onClose }: { exercise: SessionExerciseDto; onClo
   );
 }
 
+/** Registro de dor durante o exercício (ADR-046). */
+function PainPanel({ exerciseId, onClose }: { exerciseId: string; onClose: () => void }) {
+  const [region, setRegion] = useState<keyof typeof PAIN_REGION_LABELS>('shoulder');
+  const [intensity, setIntensity] = useState<number | null>(null);
+  const [sent, setSent] = useState<number | null>(null);
+  if (sent !== null) {
+    return (
+      <p role="status" className="text-sm">
+        Dor registrada.{' '}
+        {sent >= 7
+          ? 'Dor forte: pare o exercício e procure avaliação de um profissional.'
+          : 'Vamos considerar isso nos próximos treinos.'}{' '}
+        <button type="button" className="text-primary underline" onClick={onClose}>
+          Fechar
+        </button>
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-2 rounded-lg border border-border p-3">
+      <label className="flex items-center gap-2 text-sm">
+        Região
+        <Select
+          className="w-auto"
+          value={region}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v in PAIN_REGION_LABELS) setRegion(v as keyof typeof PAIN_REGION_LABELS);
+          }}
+        >
+          {Object.entries(PAIN_REGION_LABELS).map(([k, label]) => (
+            <option key={k} value={k}>
+              {label}
+            </option>
+          ))}
+        </Select>
+      </label>
+      <div className="flex flex-wrap gap-1" role="group" aria-label="Intensidade da dor (1 a 10)">
+        {Array.from({ length: 10 }, (_, i) => i + 1).map((v) => (
+          <button
+            key={v}
+            type="button"
+            aria-pressed={intensity === v}
+            className={cn(
+              'size-9 rounded-md border border-border text-sm',
+              intensity === v && 'border-primary bg-primary text-primary-foreground',
+            )}
+            onClick={() => {
+              setIntensity(v);
+            }}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+      <Button
+        variant="outline"
+        disabled={intensity === null}
+        onClick={() => {
+          if (intensity === null) return;
+          activeActions.reportPain(exerciseId, region, intensity);
+          setSent(intensity);
+        }}
+      >
+        Salvar dor
+      </Button>
+    </div>
+  );
+}
+
 export function ExerciseCard({
   exercise,
   readOnly,
@@ -148,7 +223,7 @@ export function ExerciseCard({
   readOnly: boolean;
 }) {
   const extra = useActiveWorkout((s) => s.extraSets[exercise.id] ?? 0);
-  const [panel, setPanel] = useState<'skip' | 'substitute' | null>(null);
+  const [panel, setPanel] = useState<'skip' | 'substitute' | 'pain' | null>(null);
   const rows = rowCount(exercise, extra);
   const byIndex = new Map(exercise.sets.map((s) => [s.setIndex, s]));
   const nextIndex = Array.from({ length: rows }, (_, i) => i).find((i) => !byIndex.has(i));
@@ -181,6 +256,19 @@ export function ExerciseCard({
             {exercise.status === 'substituted' ? ' · substituído' : ''}
             {skipped ? ` · pulado${exercise.skipReason ? ` (${exercise.skipReason})` : ''}` : ''}
           </p>
+          {exercise.target ? (
+            <p className="text-sm font-medium" data-testid="set-target">
+              Meta:{' '}
+              {exercise.target.loadKg === null
+                ? ''
+                : `${formatNumber(exercise.target.loadKg, 2)} kg × `}
+              {exercise.target.repMin === exercise.target.repMax
+                ? String(exercise.target.repMax)
+                : `${String(exercise.target.repMin)} a ${String(exercise.target.repMax)}`}
+              {exercise.target.action === 'increase' ? ' (subir carga)' : ''}
+              {exercise.target.action === 'decrease' ? ' (reduzir carga)' : ''}
+            </p>
+          ) : null}
         </div>
         {!readOnly ? (
           <div className="flex gap-1">
@@ -203,6 +291,15 @@ export function ExerciseCard({
                   }}
                 >
                   <SkipForward className="size-4" aria-hidden />
+                </Button>
+                <Button
+                  variant="ghost"
+                  aria-label={`Registrar dor em ${exercise.exerciseName}`}
+                  onClick={() => {
+                    setPanel(panel === 'pain' ? null : 'pain');
+                  }}
+                >
+                  <HeartPulse className="size-4" aria-hidden />
                 </Button>
                 {exercise.sets.length === 0 ? (
                   <Button
@@ -239,6 +336,14 @@ export function ExerciseCard({
             ))}
           </div>
         </div>
+      ) : null}
+      {panel === 'pain' ? (
+        <PainPanel
+          exerciseId={exercise.exerciseId}
+          onClose={() => {
+            setPanel(null);
+          }}
+        />
       ) : null}
       {panel === 'substitute' ? (
         <Substitute
