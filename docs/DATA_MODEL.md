@@ -80,7 +80,7 @@ Receita como alimento: `foods.source_code = 'recipe'`, `source_ref = recipe_id`.
 | Tabela | Colunas |
 |---|---|
 | nutrition_targets | id, user_id, date, day_type (`rest\|training\|hard_training\|sport\|sport_and_training`), kcal, protein_g, carbs_g, fat_g, fiber_g, water_ml, method (`formula\|adaptive`), inputs jsonb, goal_id, day_type_overridden (ADR-030), created_at. Único (user_id, date) |
-| energy_estimates | id, user_id, week_start, tdee_formula, tdee_observed, tdee_used, confidence (`low\|medium\|high`), weight_trend_kg, intake_avg_kcal, logged_days, weigh_in_count |
+| energy_estimates | id, user_id, week_start, tdee_formula, tdee_observed, tdee_used, confidence (`low\|medium\|high`), weight_trend_kg, intake_avg_kcal, logged_days, weigh_in_count, inputs jsonb (janela e GET anterior, ADR-051), created_at, updated_at. Único (user_id, week_start) |
 | meals | id, user_id, date, slot (`breakfast\|morning_snack\|lunch\|afternoon_snack\|pre_workout\|post_workout\|dinner\|supper\|other`), status (`planned\|logged`), eaten_at, name, notes, source_text, created_at |
 | meal_items | id, meal_id, food_id \| recipe_id, food_name (ADR-030), quantity, unit_code, grams, nutrients_snapshot jsonb, parse_confidence, created_at |
 | meal_templates | id, user_id, name, items jsonb (com `slot` por item, ADR-040), slot_hint (nulo = modelo de dia) |
@@ -89,7 +89,7 @@ Receita como alimento: `foods.source_code = 'recipe'`, `source_ref = recipe_id`.
 ## 4.8 Inteligência
 | Tabela | Colunas |
 |---|---|
-| insights | id, user_id, generated_at, period_start, period_end, category (`training\|nutrition\|body\|recovery\|integration`), type, severity (`info\|attention\|warning`), title_pt, body_pt, data jsonb, status (`new\|seen\|dismissed\|acted`), expires_at |
+| insights | id, user_id, generated_at, period_start, period_end, category (`training\|nutrition\|body\|recovery\|integration`), type, severity (`info\|attention\|warning`), title_pt, body_pt, data jsonb, status (`new\|seen\|dismissed\|acted`), expires_at, dedup_key (ADR-050), updated_at. Único (user_id, type, dedup_key); índice (user_id, status, expires_at) |
 | ai_conversations | id, user_id, title, created_at, updated_at |
 | ai_messages | id, conversation_id, role (`user\|assistant\|tool`), content jsonb, tool_calls jsonb, tokens_in, tokens_out, model, created_at |
 | ai_action_proposals | id, user_id, conversation_id, action_type (`log_meal\|plan_meal\|swap_exercise\|adapt_workout\|update_goal\|create_recipe`), payload jsonb, status (`pending\|accepted\|rejected\|expired`), created_at, resolved_at |
@@ -100,7 +100,7 @@ Receita como alimento: `foods.source_code = 'recipe'`, `source_ref = recipe_id`.
 |---|---|
 | events | id, user_id, type (ex.: `meal.logged`), entity_id, payload, created_at |
 | integrations (futuro, vazia) | id, user_id, provider, status, scopes, last_sync_at |
-| daily_context | user_id, date, day_type, planned_workout_id, session_id, activities_load, readiness_score, kcal_consumed, protein_consumed, targets_id |
+| daily_context | Não é tabela: `GET daily-context/:date` monta a fotografia do dia sob demanda (P9), como as metas (ADR-015/044) |
 
 ## 4.10 Índices obrigatórios
 - `(user_id, date)` em todas as tabelas diárias.
@@ -115,3 +115,4 @@ Receita como alimento: `foods.source_code = 'recipe'`, `source_ref = recipe_id`.
 - Fase 3: `muscles` (19, seed), `exercises` (157 de sistema, seed idempotente por nome; trigram no nome), `exercise_muscles`, `exercise_preferences`, `programs` (índice parcial: um `active` por usuário), `workout_templates`, `template_exercises`, `workout_sessions`, `session_exercises`, `set_logs`, `personal_records`, `idempotency_keys`. Progressão por exercício via join `set_logs` → `session_exercises (exercise_id, session_id)` → `workout_sessions (user_id, date)`.
 - Fase 4: `recipes`, `recipe_ingredients`, `recipe_nutrition_cache`, `meal_templates`; `foods.is_active`; fonte `recipe` em `food_sources`. Receita vira `foods` do usuário com medida `portion` (ADR-038).
 - Fase 5: `mesocycles`, `planned_workouts` (agenda materializada ao ativar, ADR-043), `activities`, `daily_checkins` (prontidão persistida), `pain_reports`; `workout_sessions.planned_workout_id`, `adapted`, `adaptation_note`. `training_load_daily` adiada (carga calculada sob demanda, ADR-044).
+- Fase 6: `energy_estimates` (GET adaptativo semanal, ADR-051) e `insights` (dedup por chave, ADR-050), migration 0011 aditiva. `daily_context` e `training_load_daily` continuam calculados sob demanda. Fila do pg-boss no schema `pgboss`, criado pelo próprio pg-boss quando `JOBS_ENABLED=true` (ADR-049).
