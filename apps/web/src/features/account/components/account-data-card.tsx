@@ -10,6 +10,7 @@ import { FormField } from '@/features/auth/components/form-field';
 import { useOnboarding } from '@/features/onboarding/store';
 import { ApiError } from '@/lib/api';
 import { kvClearUser } from '@/offline/kv';
+import { forgetSession } from '@/offline/last-session';
 
 import { accountApi } from '../api';
 
@@ -48,6 +49,7 @@ export function AccountDataCard() {
     try {
       await accountApi.delete({ password, confirmation: CONFIRM_WORD });
       await kvClearUser();
+      forgetSession();
       qc.clear();
       useOnboarding.getState().reset();
       router.replace('/entrar');

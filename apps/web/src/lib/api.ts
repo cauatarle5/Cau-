@@ -58,3 +58,6 @@ export async function apiRequest<S extends z.ZodType | null>(
   }
   return schema.parse(await res.json()) as S extends z.ZodType ? z.infer<S> : null;
 }
+
+/** Sem resposta do servidor (sem rede): o app pode seguir com dados do aparelho (ADR-060). */
+export const isNetworkError = (error: unknown) => error instanceof ApiError && error.status === 0;

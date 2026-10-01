@@ -28,6 +28,8 @@ interface Persisted {
   offline: boolean;
   extraSets: Record<string, number>;
   owned: boolean;
+  /** Descanso em andamento (horário absoluto): sobrevive a recarregar a página. */
+  rest?: { endsAt: number; total: number } | null;
 }
 
 interface ActiveState {
@@ -62,9 +64,9 @@ export const useActiveWorkout = create<ActiveState>(() => ({
 const get = () => useActiveWorkout.getState();
 
 async function persist() {
-  const { session, finished, offline, extraSets, owned } = get();
+  const { session, finished, offline, extraSets, owned, rest } = get();
   if (!session) return;
-  const data: Persisted = { session, finished, offline, extraSets, owned };
+  const data: Persisted = { session, finished, offline, extraSets, owned, rest };
   await kvSet(sessionKey(session.id), data);
   // Só o treino iniciado neste aparelho vira o "em andamento" (abrir outro do histórico não troca).
   const current = await kvGet<string>(ACTIVE_KEY);
@@ -96,7 +98,8 @@ export async function loadSession(id: string, fresh?: SessionDto) {
   useActiveWorkout.setState({ loading: true, error: null, records: [], rest: null });
   const local = await kvGet<Persisted>(sessionKey(id));
   if (local) {
-    useActiveWorkout.setState({ ...local, loading: false });
+    const rest = local.rest && local.rest.endsAt > Date.now() ? local.rest : null;
+    useActiveWorkout.setState({ ...local, rest, loading: false });
     return;
   }
   try {
@@ -282,16 +285,19 @@ export const activeActions = {
 
   startRest(seconds: number) {
     useActiveWorkout.setState({ rest: { endsAt: Date.now() + seconds * 1000, total: seconds } });
+    void persist();
   },
 
   addRest(seconds: number) {
     const rest = get().rest;
     if (rest)
       useActiveWorkout.setState({ rest: { ...rest, endsAt: rest.endsAt + seconds * 1000 } });
+    void persist();
   },
 
   clearRest() {
     useActiveWorkout.setState({ rest: null });
+    void persist();
   },
 
   /** Encerra a sessão local depois de sincronizada. */

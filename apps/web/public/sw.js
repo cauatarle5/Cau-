@@ -68,6 +68,25 @@ async function staleWhileRevalidate(request) {
   return hit ?? network;
 }
 
+// Navegações feitas no cliente (router do Next) não passam pelo SW: o app pede para guardar a
+// página visitada, e ela abre sem rede depois (ex.: recarregar o treino ativo).
+self.addEventListener('message', (event) => {
+  const data = event.data;
+  if (!data || data.type !== 'CACHE_PAGE' || typeof data.url !== 'string') return;
+  const url = new URL(data.url, self.location.origin);
+  if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
+  event.waitUntil(
+    caches.open(PAGES).then(async (cache) => {
+      try {
+        const res = await fetch(url, { credentials: 'same-origin' });
+        if (res.ok && res.type === 'basic') await cache.put(url, res);
+      } catch {
+        // sem rede: fica a cópia anterior, se houver
+      }
+    }),
+  );
+});
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;

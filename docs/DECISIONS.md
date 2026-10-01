@@ -464,7 +464,9 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
     - navegações network-first, com fallback para a última cópia e para `/offline`;
     - `/api`, que nunca entra no cache.
   - O registro só acontece em build de produção.
-  - O usuário da sessão e os dados do treino ativo ficam no `kv` de IndexedDB por usuário, que a tela lê quando a rede falha. Fila e idempotência não mudam.
+  - Navegações feitas pelo router do cliente não passam pelo SW. O app manda `CACHE_PAGE` a cada rota visitada, e o SW guarda o HTML.
+  - O último usuário (dados públicos) e o onboarding concluído ficam em `localStorage`. Sem rede (erro de rede, status 0), `RequireAuth` e o gate de onboarding seguem com eles.
+  - Os dados do treino ativo, inclusive o descanso em andamento, já ficam no `kv` de IndexedDB por usuário. Fila e idempotência não mudam.
 - **Consequências:** recarregar o treino ativo sem rede funciona depois da primeira visita online. As outras telas mostram a última cópia da página, sem dados novos.
 
 ## ADR-061: Exportação e exclusão de conta

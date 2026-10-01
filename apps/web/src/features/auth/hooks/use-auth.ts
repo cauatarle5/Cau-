@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useOnboarding } from '@/features/onboarding/store';
+import { forgetSession } from '@/offline/last-session';
 import type { LoginInput, RegisterInput } from '@atlas/schemas';
 
 import { authApi } from '../api';
@@ -38,6 +39,7 @@ export function useLogout() {
   return useMutation({
     mutationFn: authApi.logout,
     onSettled: () => {
+      forgetSession();
       qc.clear();
       useOnboarding.getState().reset();
     },

@@ -45,6 +45,11 @@ test('DoD Fase 3: treino completo sem rede, sincronizado depois, progresso visí
   await bench.getByRole('textbox', { name: 'Carga', exact: true }).fill('60');
   await bench.getByRole('textbox', { name: 'Repetições', exact: true }).fill('10');
   await bench.getByRole('button', { name: 'Confirmar série 1' }).click();
+
+  // Recarregar sem rede (PWA, ADR-060): a página vem do service worker e o treino do aparelho.
+  await page.reload();
+  await expect(bench.getByLabel('Série 1 concluída')).toContainText('60 kg × 10');
+  await expect(page.getByTestId('sync-status')).toContainText('Sem conexão');
   const timer = page.getByRole('timer', { name: 'Descanso' });
   await expect(timer).toBeVisible();
   await timer.getByRole('button', { name: 'Pular' }).click();
