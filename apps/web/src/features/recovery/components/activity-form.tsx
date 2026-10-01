@@ -99,7 +99,7 @@ export function ActivityForm({ today }: { today: string }) {
               key={v}
               type="button"
               aria-pressed={rpe === v}
-              className={`size-10 rounded-md border border-border text-sm ${rpe === v ? 'border-primary bg-primary text-primary-foreground' : ''}`}
+              className={`size-11 rounded-md border border-border text-sm ${rpe === v ? 'border-primary bg-primary text-primary-foreground' : ''}`}
               onClick={() => {
                 setRpe(v);
               }}

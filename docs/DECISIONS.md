@@ -279,3 +279,14 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
 - **Status:** aceita
 - **Contexto:** P8.6 liga dor a exercícios; DATA_MODEL 4.3 tem `body_region` livre.
 - **Decisão:** regiões fixas (`shoulder`, `elbow`, `wrist`, `lower_back`, `hip`, `knee`, `ankle`, `neck`, `other`), cada uma ligada a músculos e tags de contraindicação do catálogo. Dor ≥ 4 nos últimos 7 dias marca exercícios ligados para substituição; ≥ 7, ou registrada em 3 sessões diferentes, gera recomendação de avaliação profissional e bloqueia a progressão (mantém a carga) naquele exercício.
+
+## ADR-047: Correções da revisão da Fase 5
+- **Status:** aceita (complementa ADR-043 a ADR-046)
+- **Contexto:** a revisão 16.3 achou perda de histórico da agenda, IDOR no registro de dor e divergências com a P8.3/P8.5.
+- **Decisão:**
+  - **Histórico da agenda imutável:** `planned_workouts` guarda `program_id` e `template_name` em snapshot; template e mesociclo viram `ON DELETE SET NULL` (migration 0010, com preenchimento dos dados existentes acrescentado antes de aplicar). Reativar o programa já ativo não refaz a agenda; editar os templates do programa ativo refaz só os planejados futuros ainda não feitos. Treino feito/adaptado não pode ser movido nem pulado.
+  - **Rotação contínua:** templates seguem em ciclo pelas semanas (`planSchedule`), então programas com mais templates que dias de academia usam todos.
+  - **Progressão dupla:** só a adaptação por baixa prontidão (amarelo/vermelho) marca a sessão como `adapted` e a tira da progressão (P8.3.4); dor, tempo ou esporte mudam o plano (planejado `adapted`), mas a sessão conta. Redução de carga escolhe o múltiplo do incremento mais próximo de −7,5% dentro de −5% a −10% (empate: a redução menor); sem múltiplo na faixa, −7,5% exato.
+  - **Sessão a partir do planejado:** iniciar de novo devolve a sessão já iniciada; apagar a sessão devolve o planejado a `planned`.
+  - **Prontidão e carga:** o ajuste de −10 por esporte de pernas olha só a atividade de ontem; a adaptação usa a data do treino agendado; a EWMA crônica começa em zero e o ACWR só é definido com 28 dias de histórico (usuário novo não recebe alerta falso).
+  - **Dor:** `sessionId` e `duringExerciseId` precisam ser do usuário (404); violação de chave estrangeira vira 400 `BAD_REQUEST`, nunca 500.

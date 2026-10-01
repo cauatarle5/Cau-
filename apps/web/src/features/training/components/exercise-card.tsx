@@ -189,7 +189,7 @@ function PainPanel({ exerciseId, onClose }: { exerciseId: string; onClose: () =>
             type="button"
             aria-pressed={intensity === v}
             className={cn(
-              'size-9 rounded-md border border-border text-sm',
+              'size-11 rounded-md border border-border text-sm',
               intensity === v && 'border-primary bg-primary text-primary-foreground',
             )}
             onClick={() => {
@@ -378,7 +378,7 @@ export function ExerciseCard({
                     <button
                       type="button"
                       aria-label={`Desfazer série ${String(i + 1)}`}
-                      className="flex size-9 items-center justify-center rounded-md hover:bg-card"
+                      className="flex size-11 items-center justify-center rounded-md hover:bg-card"
                       onClick={() => {
                         activeActions.deleteSet(exercise.id, done.id);
                       }}

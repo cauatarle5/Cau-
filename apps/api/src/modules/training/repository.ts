@@ -264,20 +264,25 @@ export function createTrainingRepository(db: Database) {
       });
     },
 
-    async activateProgram(userId: string, id: string, today: string): Promise<boolean> {
+    /** `'unchanged'` se já estava ativo (não refaz a agenda). */
+    async activateProgram(
+      userId: string,
+      id: string,
+      today: string,
+    ): Promise<'activated' | 'unchanged' | false> {
       return db.transaction(async (tx) => {
         const [current] = await tx
           .select({ status: programs.status, startDate: programs.startDate })
           .from(programs)
           .where(and(eq(programs.userId, userId), eq(programs.id, id)));
         if (!current) return false;
-        if (current.status === 'active') return true;
+        if (current.status === 'active') return 'unchanged';
         await deactivateOthers(tx, userId);
         await tx
           .update(programs)
           .set({ status: 'active', startDate: current.startDate ?? today, endDate: null })
           .where(and(eq(programs.userId, userId), eq(programs.id, id)));
-        return true;
+        return 'activated';
       });
     },
 
@@ -586,8 +591,9 @@ export function createTrainingRepository(db: Database) {
     },
 
     /**
-     * Recria a agenda: apaga planejados futuros ainda não feitos (de qualquer programa) e os
-     * mesociclos deste programa; grava mesociclos e planejados novos.
+     * Recria a agenda futura: apaga só planejados de hoje em diante ainda não feitos (de
+     * qualquer programa) e grava novos mesociclos e planejados. O passado (feitos, adaptados,
+     * mesociclos antigos) fica intacto (ADR-047).
      */
     async replaceAgenda(
       userId: string,
@@ -613,7 +619,6 @@ export function createTrainingRepository(db: Database) {
           .from(programs)
           .where(and(eq(programs.userId, userId), eq(programs.id, programId)));
         if (owned.length === 0) return;
-        await tx.delete(mesocycles).where(eq(mesocycles.programId, programId));
         if (mesos.length === 0) return;
         const inserted = await tx
           .insert(mesocycles)
@@ -639,12 +644,9 @@ export function createTrainingRepository(db: Database) {
       const rows = await db
         .select({
           planned: plannedWorkouts,
-          templateName: workoutTemplates.name,
-          programId: workoutTemplates.programId,
           meso: mesocycles,
         })
         .from(plannedWorkouts)
-        .innerJoin(workoutTemplates, eq(workoutTemplates.id, plannedWorkouts.workoutTemplateId))
         .leftJoin(mesocycles, eq(mesocycles.id, plannedWorkouts.mesocycleId))
         .where(
           and(
@@ -664,8 +666,20 @@ export function createTrainingRepository(db: Database) {
         : [];
       return rows.map((r) => ({
         ...r,
+        templateName: r.planned.templateName,
+        programId: r.planned.programId,
         sessionId: sessions.find((x) => x.plannedWorkoutId === r.planned.id)?.id ?? null,
       }));
+    },
+
+    /** Sessão ativa (não apagada) já iniciada a partir do planejado. */
+    async sessionForPlanned(userId: string, plannedWorkoutId: string) {
+      const [row] = await db
+        .select({ id: workoutSessions.id })
+        .from(workoutSessions)
+        .where(and(liveSession(userId), eq(workoutSessions.plannedWorkoutId, plannedWorkoutId)))
+        .limit(1);
+      return row?.id;
     },
 
     async updatePlanned(

@@ -62,8 +62,11 @@ export function createRecoveryService(deps: {
     from: string,
     to: string,
   ) => Promise<{ date: string; au: number }[]>;
+  /** Confirmam que a sessão e o exercício são do usuário (lançam 404), ADR-046. */
+  assertSession: (userId: string, id: string) => Promise<void>;
+  assertExercise: (userId: string, id: string) => Promise<void>;
 }) {
-  const { repo, profile, sessionLoads } = deps;
+  const { repo, profile, sessionLoads, assertSession, assertExercise } = deps;
 
   async function loadRange(userId: string, from: string, to: string) {
     // 56 dias antes alimentam a EWMA crônica (ADR-044).
@@ -88,7 +91,8 @@ export function createRecoveryService(deps: {
     const [checkin, load, yesterday] = await Promise.all([
       repo.getCheckin(userId, date),
       loadRange(userId, date, date),
-      repo.listActivities(userId, addDays(date, -1), date),
+      // Só a atividade de ontem conta para o ajuste de −10 (P8.5, "últimas 24 h").
+      repo.listActivities(userId, addDays(date, -1), addDays(date, -1)),
     ]);
     return readiness(checkin ? checkinInput(checkin) : null, {
       acwr: load[0]?.acwr ?? null,
@@ -151,6 +155,8 @@ export function createRecoveryService(deps: {
     },
 
     async createPain(userId: string, input: z.output<typeof painReportInputSchema>) {
+      if (input.sessionId) await assertSession(userId, input.sessionId);
+      if (input.duringExerciseId) await assertExercise(userId, input.duringExerciseId);
       const row = await repo.createPain(userId, {
         ...input,
         sessionId: input.sessionId ?? null,

@@ -138,6 +138,12 @@ export async function buildApp({ config, db, parser }: BuildAppOptions): Promise
         date: r.date,
         au: sessionLoad(r.rpe, r.minutes),
       })),
+    assertSession: async (userId, id) => {
+      await trainingService.getSession(userId, id);
+    },
+    assertExercise: async (userId, id) => {
+      await exercisesService.getBundle(userId, id);
+    },
   });
   const agendaService = createAgendaService({
     repo: trainingRepo,

@@ -1,5 +1,6 @@
 /** Códigos de erro do Postgres usados pela aplicação. */
 export const PG_UNIQUE_VIOLATION = '23505';
+export const PG_FOREIGN_KEY_VIOLATION = '23503';
 
 export function pgErrorCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null) return undefined;

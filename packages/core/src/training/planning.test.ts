@@ -6,8 +6,8 @@ import { adaptWorkout, type WorkoutExercise } from './adaptation';
 import { exercisesPerSession, generateProgram, splitFor, type CatalogExercise } from './generator';
 import type { SetLike } from './metrics';
 import { periodizedSets, weekPlan } from './periodization';
-import { isStagnant, nextTarget, performanceDrop, type Exposure } from './progression';
-import { planDates, scheduleWeek } from './schedule';
+import { isStagnant, nextTarget, performanceDrop, reducedLoad, type Exposure } from './progression';
+import { planSchedule, scheduleWeek } from './schedule';
 import { validateProgram } from './validator';
 import type { MuscleCode } from './volume';
 
@@ -43,6 +43,13 @@ describe('double progression (P8.3)', () => {
     });
     // RIR abaixo de alvo − 1 no topo: ainda não sobe.
     expect(nextTarget([exp('2026-09-01', [s(80, 10, 0), s(80, 10, 0)])], plan).action).toBe('keep');
+  });
+
+  it('reduced load stays within −5% to −10% (closest increment to −7,5%, else exact)', () => {
+    expect(reducedLoad(100, 2.5)).toBe(92.5);
+    // 20 kg com incremento de 2,5: 17,5 seria −12,5% → 18,5 exato.
+    expect(reducedLoad(20, 2.5)).toBe(18.5);
+    expect(reducedLoad(60, 1)).toBe(56);
   });
 
   it('below the minimum in 2 straight exposures → −7,5% rounded down to the increment', () => {
@@ -110,17 +117,29 @@ describe('periodization and schedule (P8.7.5, ADR-043)', () => {
       { templateId: 'upper', weekday: 4 },
       { templateId: 'lower', weekday: 5 },
     ]);
-    // Começando numa quarta (2026-09-30): seg 05/10, ter 06/10... e a semana 2.
-    const dates = planDates('2026-09-30', 2, [
-      { templateId: 'a', weekday: 1 },
-      { templateId: 'b', weekday: 4 },
-    ]);
+    // Começando numa quarta (2026-09-30), academia seg/qui: qui 01/10, seg 05/10, qui 08/10...
+    const dates = planSchedule(
+      '2026-09-30',
+      2,
+      [
+        { id: 'a', lower: false },
+        { id: 'b', lower: false },
+      ],
+      [1, 4],
+    );
     expect(dates.map((d) => [d.date, d.templateId, d.weekIndex])).toEqual([
-      ['2026-10-01', 'b', 0],
-      ['2026-10-05', 'a', 0],
-      ['2026-10-08', 'b', 1],
-      ['2026-10-12', 'a', 1],
+      ['2026-10-01', 'a', 0],
+      ['2026-10-05', 'b', 0],
+      ['2026-10-08', 'a', 1],
+      ['2026-10-12', 'b', 1],
     ]);
+  });
+
+  it('cycles templates continuously across weeks (4 workouts in 3 days: D enters week 2)', () => {
+    const t = ['A', 'B', 'C', 'D'].map((id) => ({ id, lower: false }));
+    // Segunda 2026-10-05; academia seg/qua/sex.
+    const dates = planSchedule('2026-10-05', 2, t, [1, 3, 5]);
+    expect(dates.map((d) => d.templateId)).toEqual(['A', 'B', 'C', 'D', 'A', 'B']);
   });
 });
 
@@ -316,6 +335,31 @@ describe('adaptation (P8.6, ADR-045)', () => {
       'Sua prontidão hoje está em 24 (pouca disposição, fadiga alta): sessão leve, com metade das séries e 4 repetições de reserva.',
       'Reduzi o volume de pernas e tirei Levantamento terra porque você jogou futebol ontem com intensidade 8.',
     ]);
+  });
+
+  it('sport tomorrow lightens legs by 30%; red + rest removes everything', () => {
+    const t = adaptWorkout(session, {
+      readiness: { score: 85, band: 'green', drivers: [] },
+      sportYesterday: null,
+      sportTomorrow: { sport: 'football' },
+      pain: [],
+      availableMinutes: null,
+    });
+    // round(4 × 0,7) = 3 nas pernas; superiores intactos; não é adaptação por prontidão.
+    expect(t.exercises.map((e) => e.sets)).toEqual([3, 4, 3, 4, 3]);
+    expect(t.readinessAdapted).toBe(false);
+    expect(t.explanation).toEqual(['Aliviei as pernas porque há esporte nas próximas 24 horas.']);
+    const rest = adaptWorkout(session, {
+      readiness: { score: 30, band: 'red', drivers: ['sleep'] },
+      sportYesterday: null,
+      sportTomorrow: null,
+      pain: [],
+      availableMinutes: null,
+      redChoice: 'rest',
+    });
+    expect(rest.mode).toBe('rest');
+    expect(rest.exercises.every((e) => e.removed)).toBe(true);
+    expect(rest.readinessAdapted).toBe(true);
   });
 
   it('yellow: −1 set, RIR +1, no records; green with nothing else = unchanged', () => {

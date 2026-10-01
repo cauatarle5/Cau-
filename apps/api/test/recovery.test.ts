@@ -380,4 +380,122 @@ describe('periodization, recovery and adaptation', () => {
       repMax: 10,
     });
   });
+
+  it('history survives re-activation and template edits; restarting returns the same session', async () => {
+    const u = await onboardedUser(ctx.app, today);
+    const { program } = await withAgenda(u.call);
+    const list = async (from = today, to = addDays(today, 13)) =>
+      (
+        await u.call({ method: 'GET', url: `/api/v1/planned-workouts?from=${from}&to=${to}` })
+      ).json<{
+        items: Planned[];
+      }>().items;
+    const [first] = await list();
+    await u.call({
+      method: 'PATCH',
+      url: `/api/v1/planned-workouts/${first?.id ?? ''}`,
+      payload: { date: today },
+    });
+    // Dor no joelho ≥ 4: a sessão muda (substituir), mas não é adaptação por prontidão.
+    await u.call({
+      method: 'POST',
+      url: '/api/v1/pain-reports',
+      payload: { date: today, bodyRegion: 'knee', intensity: 5 },
+    });
+    const start = await u.call({
+      method: 'POST',
+      url: '/api/v1/sessions',
+      payload: { plannedWorkoutId: first?.id },
+    });
+    expect(start.statusCode).toBe(201);
+    const session = start.json<{ id: string; adapted: boolean }>();
+    expect(session.adapted).toBe(false);
+    const again = await u.call({
+      method: 'POST',
+      url: '/api/v1/sessions',
+      payload: { plannedWorkoutId: first?.id },
+    });
+    expect(again.statusCode).toBe(200);
+    expect(again.json<{ id: string }>().id).toBe(session.id);
+
+    const done = (await list(today, today)).find((p) => p.id === first?.id);
+    expect(done).toMatchObject({ status: 'adapted', sessionId: session.id });
+    const moveDone = await u.call({
+      method: 'PATCH',
+      url: `/api/v1/planned-workouts/${first?.id ?? ''}`,
+      payload: { status: 'skipped' },
+    });
+    expect(moveDone.statusCode).toBe(400);
+
+    // Reativar o programa ativo não refaz a agenda.
+    await u.call({ method: 'POST', url: `/api/v1/programs/${program.id}/activate` });
+    expect((await list(today, today)).find((p) => p.id === first?.id)).toMatchObject({
+      status: 'adapted',
+    });
+
+    // Editar os templates do programa ativo: o feito fica (com o nome em snapshot), o futuro é refeito.
+    const current = (await u.call({ method: 'GET', url: `/api/v1/programs/${program.id}` })).json<{
+      templates: {
+        name: string;
+        exercises: { exerciseId: string; sets: number; repMin: number; repMax: number }[];
+      }[];
+    }>();
+    const patched = await u.call({
+      method: 'PATCH',
+      url: `/api/v1/programs/${program.id}`,
+      payload: {
+        templates: current.templates.map((t) => ({
+          name: `${t.name} v2`,
+          exercises: t.exercises.map((e) => ({
+            exerciseId: e.exerciseId,
+            sets: e.sets,
+            repMin: e.repMin,
+            repMax: e.repMax,
+          })),
+        })),
+      },
+    });
+    expect(patched.statusCode).toBe(200);
+    const after = await list();
+    const kept = after.find((p) => p.id === first?.id);
+    expect(kept).toMatchObject({
+      status: 'adapted',
+      templateName: first?.templateName,
+      sessionId: session.id,
+    });
+    const future = after.filter((p) => p.id !== first?.id);
+    expect(future.length).toBeGreaterThan(0);
+    for (const p of future) expect(p.templateName).toMatch(/ v2$/);
+
+    // Apagar a sessão libera o planejado para começar de novo.
+    await u.call({ method: 'DELETE', url: `/api/v1/sessions/${session.id}` });
+    expect((await list()).find((p) => p.id === first?.id)).toMatchObject({
+      status: 'planned',
+      sessionId: null,
+    });
+  });
+
+  it("pain reports only link the user's own sessions and exercises", async () => {
+    const a = await registerUser(ctx.app);
+    const b = await registerUser(ctx.app);
+    const callA = as(ctx.app, a.cookie);
+    const callB = as(ctx.app, b.cookie);
+    const s = (
+      await callA({ method: 'POST', url: '/api/v1/sessions', payload: { name: 'Livre' } })
+    ).json<{ id: string }>();
+    const own = await callA({
+      method: 'POST',
+      url: '/api/v1/pain-reports',
+      payload: { date: today, bodyRegion: 'shoulder', intensity: 3, sessionId: s.id },
+    });
+    expect(own.statusCode).toBe(201);
+    for (const payload of [
+      { date: today, bodyRegion: 'shoulder', intensity: 3, sessionId: s.id },
+      { date: today, bodyRegion: 'shoulder', intensity: 3, sessionId: MISSING },
+      { date: today, bodyRegion: 'shoulder', intensity: 3, duringExerciseId: MISSING },
+    ]) {
+      const r = await callB({ method: 'POST', url: '/api/v1/pain-reports', payload });
+      expect(r.statusCode).toBe(404);
+    }
+  });
 });

@@ -45,7 +45,7 @@ export function AgendaCard({ today }: { today: string }) {
                   {p.date !== today ? (
                     <Button
                       variant="outline"
-                      className="min-h-9 px-2 text-xs"
+                      className="px-3 text-xs"
                       disabled={patch.isPending}
                       aria-label={`Mover ${p.templateName} para hoje`}
                       onClick={() => {
@@ -57,7 +57,7 @@ export function AgendaCard({ today }: { today: string }) {
                   ) : null}
                   <Button
                     variant="ghost"
-                    className="min-h-9 px-2 text-xs"
+                    className="px-3 text-xs"
                     disabled={patch.isPending}
                     aria-label={`Pular ${p.templateName}`}
                     onClick={() => {

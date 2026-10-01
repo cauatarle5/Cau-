@@ -82,6 +82,7 @@ export function TodayWorkoutCard({ today }: { today: string }) {
               BAND_CLASSES[a.readiness.band],
             )}
           >
+            {a.readiness.score !== null ? `${String(a.readiness.score)} · ` : ''}
             {BAND_LABELS[a.readiness.band]}
           </span>
         ) : null}
@@ -120,9 +121,9 @@ export function TodayWorkoutCard({ today }: { today: string }) {
 
       {a && a.mode !== 'rest' ? (
         <ul className="divide-y divide-border text-sm" aria-label="Exercícios de hoje">
-          {a.exercises.map((e) => (
+          {a.exercises.map((e, i) => (
             <li
-              key={e.exerciseId}
+              key={e.templateExerciseId ?? `${e.exerciseId}-${String(i)}`}
               className={cn(
                 'flex justify-between gap-2 py-1.5',
                 e.removed && 'text-muted-foreground line-through',

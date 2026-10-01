@@ -22,7 +22,7 @@ export function scheduleWeek(
   sportDays: readonly number[] = [],
 ): { templateId: string; weekday: number }[] {
   if (templates.length === 0 || gymDays.length === 0) return [];
-  const days = [...new Set(gymDays)].sort((a, b) => a - b);
+  const days = [...new Set(gymDays)];
   const slots = days.map((weekday, i) => {
     const t = templates[i % templates.length] as ScheduleTemplate;
     return { weekday, template: t };
@@ -36,15 +36,32 @@ export function scheduleWeek(
   return slots.map((s) => ({ templateId: s.template.id, weekday: s.weekday }));
 }
 
-/** Datas da agenda: a partir de `start` (inclusive), `weeks` semanas da distribuição semanal. */
-export function planDates(
+/**
+ * Agenda de várias semanas (ADR-043/047): os templates seguem em ciclo contínuo pelos dias
+ * de academia (o 4º template de um programa de 4 treinos em 3 dias entra na semana seguinte);
+ * em cada semana, sessões com pernas fogem dos dias vizinhos aos esportes quando possível.
+ * Começa em `start` (inclusive).
+ */
+export function planSchedule(
   start: string,
   weeks: number,
-  week: readonly { templateId: string; weekday: number }[],
+  templates: readonly ScheduleTemplate[],
+  gymDays: readonly number[],
+  sportDays: readonly number[] = [],
 ): { date: string; templateId: string; weekIndex: number }[] {
-  const out: { date: string; templateId: string; weekIndex: number }[] = [];
+  if (templates.length === 0 || gymDays.length === 0) return [];
+  const days = [...new Set(gymDays)].sort((a, b) => a - b);
   const startDow = new Date(`${start}T00:00:00Z`).getUTCDay();
+  // Dias em ordem de calendário a partir de `start`.
+  const ordered = [...days].sort((a, b) => ((a - startDow + 7) % 7) - ((b - startDow + 7) % 7));
+  const out: { date: string; templateId: string; weekIndex: number }[] = [];
+  let next = 0;
   for (let w = 0; w < weeks; w++) {
+    const rotated = ordered.map(
+      (_, i) => templates[(next + i) % templates.length] as ScheduleTemplate,
+    );
+    next += ordered.length;
+    const week = scheduleWeek(rotated, ordered, sportDays);
     for (const slot of week) {
       const offset = ((slot.weekday - startDow + 7) % 7) + w * 7;
       out.push({ date: addDays(start, offset), templateId: slot.templateId, weekIndex: w });

@@ -90,15 +90,14 @@ export function CheckinCard({ date }: { date: string }) {
       {CHECKIN_FIELDS.map((f) => (
         <div key={f.key} className="space-y-1">
           <p className="text-sm font-medium">{f.label}</p>
-          <div className="flex items-center gap-1.5" role="group" aria-label={f.label}>
-            <span className="w-14 text-xs text-muted-foreground">{f.low}</span>
+          <div className="grid grid-cols-5 gap-1.5" role="group" aria-label={f.label}>
             {[1, 2, 3, 4, 5].map((v) => (
               <button
                 key={v}
                 type="button"
                 aria-pressed={values[f.key] === v}
                 className={cn(
-                  'size-10 rounded-md border border-border text-sm',
+                  'h-11 rounded-md border border-border text-sm',
                   values[f.key] === v && 'border-primary bg-primary text-primary-foreground',
                 )}
                 onClick={() => {
@@ -108,7 +107,10 @@ export function CheckinCard({ date }: { date: string }) {
                 {v}
               </button>
             ))}
-            <span className="w-14 text-right text-xs text-muted-foreground">{f.high}</span>
+          </div>
+          <div className="flex justify-between text-xs text-muted-foreground" aria-hidden>
+            <span>{f.low}</span>
+            <span>{f.high}</span>
           </div>
         </div>
       ))}

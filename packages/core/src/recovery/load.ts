@@ -36,11 +36,14 @@ export function loadSeries(
   const start = first && first < from ? first : from;
   const days = dateRange(start, to);
   const out: LoadSnapshot[] = [];
-  let ewma: number | null = null;
+  // Começa em zero: usuário novo não ganha carga crônica alta com o primeiro treino.
+  let ewma = 0;
   const window: number[] = [];
+  // ACWR só com histórico que cubra a janela crônica (28 dias desde a primeira carga).
+  const enoughFrom = first ? addDays(first, 27) : null;
   for (const date of days) {
     const au = byDay.get(date) ?? 0;
-    ewma = ewma === null ? au : ALPHA * au + (1 - ALPHA) * ewma;
+    ewma = ALPHA * au + (1 - ALPHA) * ewma;
     window.push(au);
     if (window.length > 7) window.shift();
     if (date < from) continue;
@@ -55,7 +58,7 @@ export function loadSeries(
       dayAU: au,
       acute7d: acute,
       chronic28d: chronic,
-      acwr: chronic > 0 ? acute / chronic : null,
+      acwr: chronic > 0 && enoughFrom !== null && date >= enoughFrom ? acute / chronic : null,
       monotony7d: monotony,
       strain7d: monotony === null ? null : acute * monotony,
     });

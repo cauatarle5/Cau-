@@ -5,6 +5,7 @@ import { hasZodFastifySchemaValidationErrors } from 'fastify-type-provider-zod';
 import type { ErrorCode, ProblemDetails } from '@atlas/schemas';
 
 import { AppError } from '../lib/errors';
+import { PG_FOREIGN_KEY_VIOLATION, pgErrorCode } from '../lib/pg';
 
 const PROBLEM_TYPE_BASE = 'https://atlas.local/problems/';
 
@@ -53,6 +54,16 @@ export const errorsPlugin = fp((app: FastifyInstance) => {
           field: v.instancePath.replace(/^\//, '').replaceAll('/', '.') || v.schemaPath,
           message: v.message ?? 'Valor inválido',
         })),
+      });
+    }
+
+    // Referência a registro inexistente (FK): erro do cliente, não 500.
+    if (pgErrorCode(error) === PG_FOREIGN_KEY_VIOLATION) {
+      return send(reply, request, {
+        status: 400,
+        code: 'BAD_REQUEST',
+        title: 'Referência inválida',
+        detail: 'Um dos registros informados não existe.',
       });
     }
 

@@ -449,12 +449,18 @@ export function createTrainingService(deps: {
         templates,
       );
       if (!ok) throw notFound('Programa');
+      // Templates novos no programa ativo: refaz só a agenda futura.
+      if (templates && (await repo.getProgram(ctx.userId, id))?.program.status === 'active') {
+        await agenda().materialize(ctx, id);
+      }
       return getProgram(ctx.userId, id);
     },
 
     async activateProgram(ctx: Ctx, id: string) {
-      if (!(await repo.activateProgram(ctx.userId, id, ctx.today))) throw notFound('Programa');
-      await agenda().materialize(ctx, id);
+      const result = await repo.activateProgram(ctx.userId, id, ctx.today);
+      if (!result) throw notFound('Programa');
+      // Já ativo: a agenda (e o histórico dela) fica como está (ADR-047).
+      if (result === 'activated') await agenda().materialize(ctx, id);
       return getProgram(ctx.userId, id);
     },
 
@@ -474,6 +480,10 @@ export function createTrainingService(deps: {
       let templateId = input.workoutTemplateId ?? null;
       let plan: Awaited<ReturnType<AgendaService['sessionPlan']>> | null = null;
       if (input.plannedWorkoutId) {
+        // Já iniciado a partir deste planejado: devolve a mesma sessão.
+        const running = await repo.sessionForPlanned(userId, input.plannedWorkoutId);
+        const existing = running ? await repo.getSession(userId, running) : undefined;
+        if (existing) return { created: false, session: await toSessionDto(userId, existing) };
         // Treino agendado já adaptado ao dia (ADR-045).
         plan = await agenda().sessionPlan(ctx, input.plannedWorkoutId, input.redChoice);
         name ??= plan.name;
@@ -595,6 +605,14 @@ export function createTrainingService(deps: {
     async deleteSession(userId: string, id: string) {
       const current = await repo.getSession(userId, id);
       if (!current || !(await repo.softDeleteSession(userId, id))) throw notFound('Treino');
+      // O treino agendado volta a ficar disponível para começar de novo.
+      if (current.session.plannedWorkoutId) {
+        await repo.updatePlanned(userId, current.session.plannedWorkoutId, {
+          status: 'planned',
+          adaptationReason: null,
+          adaptedPayload: null,
+        });
+      }
       await rebuildRecords(
         userId,
         current.exercises.map((e) => e.exerciseId),

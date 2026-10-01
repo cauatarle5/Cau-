@@ -134,9 +134,10 @@ export const plannedWorkoutSchema = z.object({
   date: z.string(),
   weekIndex: z.number().int(),
   status: z.enum(['planned', 'done', 'skipped', 'moved', 'adapted']),
-  workoutTemplateId: z.uuid(),
+  /** Nulo se o template foi editado depois (o nome fica em snapshot, ADR-047). */
+  workoutTemplateId: z.uuid().nullable(),
   templateName: z.string(),
-  programId: z.uuid(),
+  programId: z.uuid().nullable(),
   rir: z.number().int(),
   volumeFactor: z.number(),
   deload: z.boolean(),
@@ -160,6 +161,7 @@ export const adaptedWorkoutSchema = z.object({
   estimatedMinutes: z.number(),
   exercises: z.array(
     z.object({
+      templateExerciseId: z.uuid().nullable(),
       exerciseId: z.uuid(),
       name: z.string(),
       sets: z.number().int(),

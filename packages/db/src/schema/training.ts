@@ -209,10 +209,13 @@ export const plannedWorkouts = pgTable(
     id: idColumn(),
     userId: userRef(),
     date: date('date', { mode: 'string' }).notNull(),
-    workoutTemplateId: uuid('workout_template_id')
-      .notNull()
-      .references(() => workoutTemplates.id, { onDelete: 'cascade' }),
-    mesocycleId: uuid('mesocycle_id').references(() => mesocycles.id, { onDelete: 'cascade' }),
+    /** Histórico sobrevive à edição dos templates: nome e programa ficam em snapshot (ADR-047). */
+    workoutTemplateId: uuid('workout_template_id').references(() => workoutTemplates.id, {
+      onDelete: 'set null',
+    }),
+    programId: uuid('program_id').references(() => programs.id, { onDelete: 'set null' }),
+    templateName: text('template_name').notNull().default(''),
+    mesocycleId: uuid('mesocycle_id').references(() => mesocycles.id, { onDelete: 'set null' }),
     weekIndex: smallint('week_index').notNull(),
     status: plannedWorkoutStatusEnum('status').notNull().default('planned'),
     adaptationReason: text('adaptation_reason'),

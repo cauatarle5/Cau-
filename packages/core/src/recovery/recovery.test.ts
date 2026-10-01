@@ -60,9 +60,17 @@ describe('internal load (P8.5, ADR-044)', () => {
     }));
     const [last] = loadSeries(entries, '2026-03-01', '2026-03-01');
     expect(last?.acute7d).toBe(700);
-    expect(last?.chronic28d).toBeCloseTo(700, 6);
-    expect(last?.acwr).toBeCloseTo(1, 6);
+    // EWMA a partir de zero após 60 dias de 100: 100 × (1 − (1 − 2/29)^60) × 7 ≈ 690,5.
+    const alpha = 2 / 29;
+    expect(last?.chronic28d).toBeCloseTo(700 * (1 - (1 - alpha) ** 60), 6);
+    expect(last?.acwr).toBeCloseTo(1 / (1 - (1 - alpha) ** 60), 6);
     expect(last?.monotony7d).toBeNull();
+  });
+
+  it('ACWR is undefined until the history covers 28 days', () => {
+    const [s] = loadSeries([{ date: '2026-09-30', au: 720 }], '2026-10-01', '2026-10-01');
+    expect(s?.acute7d).toBe(720);
+    expect(s?.acwr).toBeNull();
   });
 
   it('spike after a light month raises ACWR above 1,5; monotony and strain by hand', () => {

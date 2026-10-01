@@ -50,3 +50,13 @@ body {
   color: var(--foreground);
   font-feature-settings: 'tnum';
 }
+
+/* Navegação inferior fixa no celular: rolagem até um campo (teclado, foco) para acima dela. */
+html {
+  scroll-padding-bottom: 6rem;
+}
+@media (min-width: 64rem) {
+  html {
+    scroll-padding-bottom: 0;
+  }
+}

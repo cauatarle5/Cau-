@@ -57,6 +57,8 @@ export interface Adaptation {
   mode: 'normal' | 'reduced' | 'light' | 'rest';
   exercises: AdaptedExercise[];
   changed: boolean;
+  /** Mudança por baixa prontidão: só ela tira a sessão da progressão dupla (P8.3.4, ADR-047). */
+  readinessAdapted: boolean;
   noRecords: boolean;
   seeProfessional: boolean;
   /** Frases em pt-BR, montadas por regras (sem LLM). */
@@ -215,5 +217,13 @@ export function adaptWorkout(
       e.sets !== e.originalSets ||
       e.targetRir !== planned.find((p) => p.exerciseId === e.exerciseId)?.targetRir,
   );
-  return { mode, exercises: ex, changed, noRecords, seeProfessional, explanation };
+  return {
+    mode,
+    exercises: ex,
+    changed,
+    readinessAdapted: mode !== 'normal',
+    noRecords,
+    seeProfessional,
+    explanation,
+  };
 }

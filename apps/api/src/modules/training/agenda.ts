@@ -10,7 +10,7 @@ import {
   nextTarget,
   PAIN_REGIONS,
   periodizedSets,
-  planDates,
+  planSchedule,
   scheduleWeek,
   validateProgram,
   weekPlan,
@@ -31,7 +31,7 @@ import type {
   programGenerateSchema,
 } from '@atlas/schemas';
 
-import { notFound } from '../../lib/errors';
+import { AppError, notFound } from '../../lib/errors';
 import type { ExerciseBundle } from '../exercises/repository';
 import type { ExercisesService } from '../exercises/service';
 import type { ProfileService } from '../profile/service';
@@ -212,15 +212,21 @@ export function createAgendaService(deps: {
     id: string,
     redChoice?: 'light' | 'rest',
   ): Promise<AdaptedWorkoutDto> {
+    return (await computeAdapted(ctx, id, redChoice)).dto;
+  }
+
+  async function computeAdapted(ctx: Ctx, id: string, redChoice?: 'light' | 'rest') {
     const row = await getPlanned(ctx.userId, id);
-    const tpl = await repo.getTemplate(ctx.userId, row.planned.workoutTemplateId);
-    if (!tpl) throw notFound('Treino agendado');
+    const templateId = row.planned.workoutTemplateId;
+    const tpl = templateId ? await repo.getTemplate(ctx.userId, templateId) : undefined;
+    if (!tpl) throw notFound('Treino do programa');
     const info = await catalogMap(
       ctx.userId,
       tpl.exercises.map((e) => e.exerciseId),
     );
     const week = weekPlan(row.planned.weekIndex);
-    const planned: WorkoutExercise[] = tpl.exercises.flatMap((e) => {
+    const usable = tpl.exercises.filter((e) => info.has(e.exerciseId));
+    const planned: WorkoutExercise[] = usable.flatMap((e) => {
       const b = info.get(e.exerciseId);
       if (!b) return [];
       const c = toCatalogExercise(b);
@@ -243,15 +249,16 @@ export function createAgendaService(deps: {
     const lowerSession = planned.some((e) => e.primaryMuscles.some((m) => LOWER.includes(m)));
     const rec = recovery();
     const [readiness, context, history] = await Promise.all([
-      rec.readinessFor(ctx.userId, ctx.today, lowerSession),
-      rec.adaptationContext(ctx.userId, ctx.today),
+      // Prontidão e contexto do dia do treino (não de hoje, se for outro dia).
+      rec.readinessFor(ctx.userId, row.planned.date, lowerSession),
+      rec.adaptationContext(ctx.userId, row.planned.date),
       repo.historySets(
         ctx.userId,
         planned.map((p) => p.exerciseId),
       ),
     ]);
     const a = adaptWorkout(planned, { readiness, ...context, ...(redChoice ? { redChoice } : {}) });
-    return {
+    const dto: AdaptedWorkoutDto = {
       plannedWorkout: toPlannedDto(row),
       readiness,
       mode: a.mode,
@@ -266,7 +273,7 @@ export function createAgendaService(deps: {
             .map((e) => ({ sets: e.sets, restSeconds: e.restSeconds ?? 120 })),
         ),
       ),
-      exercises: a.exercises.map((e) => {
+      exercises: a.exercises.map((e, i) => {
         const b = info.get(e.exerciseId);
         const exposures = exposuresFor(history, e.exerciseId);
         const lastLoad =
@@ -288,6 +295,7 @@ export function createAgendaService(deps: {
             ? blockIncrease(raw, lastLoad)
             : raw;
         return {
+          templateExerciseId: usable[i]?.id ?? null,
           exerciseId: e.exerciseId,
           name: e.name,
           sets: e.sets,
@@ -301,6 +309,7 @@ export function createAgendaService(deps: {
         };
       }),
     };
+    return { dto, readinessAdapted: a.readinessAdapted, usable };
   }
 
   return {
@@ -374,22 +383,20 @@ export function createAgendaService(deps: {
         bundle.templates.flatMap((t) => t.exercises.map((e) => e.exerciseId)),
       );
       const usable = bundle.templates.filter((t) => t.exercises.length > 0);
-      const week = scheduleWeek(
-        usable.map((t) => ({
-          id: t.template.id,
-          lower: t.exercises.some((e) =>
-            info
-              .get(e.exerciseId)
-              ?.muscles.some(
-                (m) => m.role === 'primary' && LOWER.includes(m.muscleCode as MuscleCode),
-              ),
-          ),
-        })),
-        sc.gymDays,
-        sc.sportDays,
-      );
+      const templates = usable.map((t) => ({
+        id: t.template.id,
+        lower: t.exercises.some((e) =>
+          info
+            .get(e.exerciseId)
+            ?.muscles.some(
+              (m) => m.role === 'primary' && LOWER.includes(m.muscleCode as MuscleCode),
+            ),
+        ),
+      }));
+      const names = new Map(usable.map((t) => [t.template.id, t.template.name]));
       const totalWeeks = DEFAULT_MESOCYCLE.weeks * DEFAULT_MESOCYCLE_COUNT;
-      const mesos = week.length
+      const dates = planSchedule(ctx.today, totalWeeks, templates, sc.gymDays, sc.sportDays);
+      const mesos = dates.length
         ? Array.from({ length: DEFAULT_MESOCYCLE_COUNT }, (_, i) => ({
             order: i,
             name: `Mesociclo ${String(i + 1)}`,
@@ -400,9 +407,11 @@ export function createAgendaService(deps: {
             volumeProgression: [...DEFAULT_MESOCYCLE.volume],
           }))
         : [];
-      const planned = planDates(ctx.today, totalWeeks, week).map((d) => ({
+      const planned = dates.map((d) => ({
         date: d.date,
         workoutTemplateId: d.templateId,
+        programId,
+        templateName: names.get(d.templateId) ?? '',
         weekIndex: d.weekIndex % DEFAULT_MESOCYCLE.weeks,
         mesocycleOrder: Math.floor(d.weekIndex / DEFAULT_MESOCYCLE.weeks),
       }));
@@ -419,6 +428,14 @@ export function createAgendaService(deps: {
       patch: z.output<typeof plannedWorkoutPatchSchema>,
     ) {
       const current = await getPlanned(userId, id);
+      if (current.planned.status === 'done' || current.planned.status === 'adapted') {
+        throw new AppError(
+          400,
+          'BAD_REQUEST',
+          'Treino já feito',
+          'Um treino já feito não pode ser movido nem pulado.',
+        );
+      }
       const moved = patch.date !== undefined && patch.date !== current.planned.date;
       await repo.updatePlanned(userId, id, {
         ...(patch.date !== undefined ? { date: patch.date } : {}),
@@ -433,15 +450,15 @@ export function createAgendaService(deps: {
 
     adapted,
 
-    /** Exercícios da sessão a partir do plano adaptado; marca o planejado (ADR-045). */
+    /** Exercícios da sessão a partir do plano adaptado; marca o planejado (ADR-045/047). */
     async sessionPlan(ctx: Ctx, id: string, redChoice?: 'light' | 'rest') {
-      const plan = await adapted(ctx, id, redChoice);
-      const tpl = await repo.getTemplate(ctx.userId, plan.plannedWorkout.workoutTemplateId);
-      const restById = new Map((tpl?.exercises ?? []).map((e) => [e.exerciseId, e]));
+      const { dto: plan, readinessAdapted, usable } = await computeAdapted(ctx, id, redChoice);
+      const byTemplateExercise = new Map(usable.map((e) => [e.id, e]));
       return {
         name: plan.plannedWorkout.templateName,
         workoutTemplateId: plan.plannedWorkout.workoutTemplateId,
-        adapted: plan.changed,
+        // Só a adaptação por prontidão tira a sessão da progressão dupla (P8.3.4).
+        adapted: readinessAdapted,
         note: plan.explanation.length > 0 ? plan.explanation.join(' ') : null,
         exercises: plan.exercises
           .filter((e) => !e.removed)
@@ -449,12 +466,14 @@ export function createAgendaService(deps: {
             order: i,
             exerciseId: e.exerciseId,
             exerciseName: e.name,
-            templateExerciseId: restById.get(e.exerciseId)?.id ?? null,
+            templateExerciseId: e.templateExerciseId,
             targetSets: e.sets,
             repMin: e.repMin,
             repMax: e.repMax,
             targetRir: e.targetRir,
-            restSeconds: restById.get(e.exerciseId)?.restSeconds ?? null,
+            restSeconds: e.templateExerciseId
+              ? (byTemplateExercise.get(e.templateExerciseId)?.restSeconds ?? null)
+              : null,
             notes: e.substitute ? 'Substituir: dor registrada na região.' : null,
           })),
         markPlanned: () =>

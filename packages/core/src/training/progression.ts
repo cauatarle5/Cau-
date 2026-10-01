@@ -24,7 +24,24 @@ export interface SetTarget {
 const working = (sets: readonly SetLike[]) =>
   sets.filter((s) => s.completed && s.setType === 'working' && s.reps !== null);
 
-const floorTo = (v: number, step: number) => (step > 0 ? Math.floor(v / step + 1e-9) * step : v);
+/**
+ * Carga reduzida (P8.3.3): −5% a −10%, num múltiplo do incremento quando houver um nessa
+ * faixa (o mais próximo de −7,5%); senão, −7,5% exato.
+ */
+export function reducedLoad(load: number | null, incrementKg: number): number | null {
+  if (load === null) return null;
+  const target = load * 0.925;
+  if (incrementKg <= 0) return target;
+  const lo = Math.ceil((load * 0.9) / incrementKg - 1e-9) * incrementKg;
+  const hi = Math.floor((load * 0.95) / incrementKg + 1e-9) * incrementKg;
+  if (lo > hi) return target;
+  let best = lo;
+  for (let v = lo; v <= hi + 1e-9; v += incrementKg) {
+    // Empate: fica com a redução menor.
+    if (Math.abs(v - target) <= Math.abs(best - target) + 1e-9) best = v;
+  }
+  return Math.round(best * 1000) / 1000;
+}
 
 /**
  * Progressão dupla (P8.3): todas as séries no topo da faixa com RIR ≥ alvo − 1 → +incremento
@@ -54,10 +71,9 @@ export function nextTarget(exposures: readonly Exposure[], plan: ProgressionPlan
   const below = (e: Exposure) => Math.max(...working(e.sets).map((s) => s.reps ?? 0)) < plan.repMin;
   const prev = valid.at(-2);
   if (prev && below(last) && below(prev)) {
-    const reduced = load === null ? null : floorTo(load * 0.925, plan.incrementKg);
     return {
       action: 'decrease',
-      loadKg: reduced !== null && load !== null && reduced >= load ? load * 0.925 : reduced,
+      loadKg: reducedLoad(load, plan.incrementKg),
       repMin: plan.repMin,
       repMax: plan.repMax,
     };
