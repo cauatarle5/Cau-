@@ -408,6 +408,9 @@ export function createTrainingService(deps: {
   }
 
   return {
+    /** Recalcula os recordes dos exercícios dados (usado pelo seed demo). */
+    rebuildRecords,
+
     // Programas -----------------------------------------------------------
 
     async listPrograms(userId: string) {

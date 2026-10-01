@@ -325,3 +325,21 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
   - Confiança `low` quando os critérios não são atingidos: o GET usado continua o da fórmula.
   - O limite de ±150 kcal vale para o GET usado em relação ao anterior. Como o ajuste do objetivo é proporcional ao GET, a meta muda no máximo cerca de 150 kcal por semana.
   - As metas usam `tdee_used` da estimativa mais recente com confiança `medium` ou `high` (`method = 'adaptive'`), sempre passando pelas travas da P5.7.
+
+## ADR-052: Seed demo na API
+- **Status:** aceita
+- **Contexto:** P10.4 e o DoD da Fase 6 pedem um usuário fictício com 90 dias de dados. Recordes, GET adaptativo e insights são calculados pelos serviços da API, e `packages/db` não pode depender de `apps/api`.
+- **Decisão:**
+  - O seed fica em `apps/api/src/demo/seed.ts`. `pnpm db:seed:demo` chama `apps/api/scripts/seed-demo.ts`.
+  - `createServices(db)` monta os mesmos serviços do servidor, sem HTTP.
+  - O usuário `demo@atlas.app` (senha `demo-atlas-2026`) é apagado e recriado a cada execução. Os dados são determinísticos, gerados por um LCG com semente fixa, e relativos a "hoje" no fuso de São Paulo:
+    - perfil, objetivo de perda de gordura e disponibilidade seg/ter/qui/sáb;
+    - futebol às quartas;
+    - programa gerado pelo motor de regras;
+    - agenda passada com faltas e uma pausa de 10 dias;
+    - sessões com carga linear e RIR registrado constante;
+    - pesagens com perda de cerca de 0,5% por semana;
+    - refeições da TACO;
+    - check-ins com cerca de 30% de noites curtas, nenhuma nas últimas 2 semanas.
+  - Os dados são montados para gerar insights conhecidos: proteína baixa em 3 dos últimos 5 dias de treino, um exercício congelado (estagnado), recordes recentes e a correlação entre sono e tonelagem. Um teste de integração confere esses insights.
+  - No fim, o seed recalcula os recordes, o GET adaptativo das 5 últimas semanas e os insights de hoje.
