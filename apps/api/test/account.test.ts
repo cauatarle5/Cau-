@@ -39,6 +39,21 @@ describe('account (LGPD, ADR-061)', () => {
     return rows.rows.map((r) => r.table_name);
   }
 
+  /** Tudo o que a exclusão apaga: tabelas alcançáveis de `users` por FK `on delete cascade`. */
+  async function cascadeTables(): Promise<string[]> {
+    const rows = await ctx.handle.db.execute<{ name: string }>(sql`
+      with recursive owned(oid) as (
+        select 'public.users'::regclass::oid
+        union
+        select c.conrelid from pg_constraint c join owned o on c.confrelid = o.oid
+        where c.contype = 'f' and c.confdeltype = 'c'
+      )
+      select relname as name from pg_class
+      where oid in (select oid from owned) and relname <> 'users'
+      order by relname`);
+    return rows.rows.map((r) => r.name);
+  }
+
   async function countsFor(userId: string) {
     const out: Record<string, number> = {};
     for (const t of await dbUserTables()) {
@@ -78,20 +93,52 @@ describe('account (LGPD, ADR-061)', () => {
     expect(res.body).not.toContain('argon2');
     expect(res.body).not.toContain('passwordHash');
 
-    // Nenhuma tabela com user_id fica fora da exportação sem estar na lista de exclusão.
-    const expected = (await dbUserTables()).filter((t) => !EXPORT_EXCLUDED.has(t));
+    // Tudo o que a exclusão apaga é exportado (inclusive filhas sem user_id, como itens de
+    // refeição e séries), exceto a lista de exclusão.
+    const expected = (await cascadeTables()).filter((t) => !EXPORT_EXCLUDED.has(t));
     expect(Object.keys(data.tables).sort()).toEqual(expected);
+    for (const t of await dbUserTables())
+      if (!EXPORT_EXCLUDED.has(t)) expect(expected).toContain(t);
     for (const t of EXPORT_EXCLUDED) expect(data.tables[t]).toBeUndefined();
 
-    // Contagens batem com o banco e nenhuma linha é de outro usuário.
+    // Tabelas com user_id: contagens batem e nenhuma linha é de outro usuário.
     const counts = await countsFor(a.userId);
     for (const [t, rows] of Object.entries(data.tables)) {
+      if (!(t in counts)) continue;
       expect(rows.length, t).toBe(counts[t]);
       for (const row of rows) expect(row.userId, t).toBe(a.userId);
     }
-    expect(data.tables.meals?.length).toBeGreaterThan(0);
-    expect(data.tables.workout_sessions?.length).toBeGreaterThan(0);
-    expect(JSON.stringify(data.tables)).not.toContain(b.userId);
+
+    // Filhas: completas e só do usuário (cadeias de 1 e 2 níveis).
+    const ids = (t: string, key = 'id') =>
+      new Set((data.tables[t] ?? []).map((r) => r[key] as string));
+    const one = async (q: ReturnType<typeof sql>) =>
+      (await ctx.handle.db.execute<{ n: number }>(q)).rows[0]?.n ?? -1;
+    const items = data.tables.meal_items ?? [];
+    expect(items.length).toBeGreaterThan(0);
+    expect(items.length).toBe(
+      await one(sql`select count(*)::int as n from meal_items i join meals m on m.id = i.meal_id
+                    where m.user_id = ${a.userId}`),
+    );
+    const meals = ids('meals');
+    for (const i of items) expect(meals.has(i.mealId as string)).toBe(true);
+    const sets = data.tables.set_logs ?? [];
+    expect(sets.length).toBeGreaterThan(0);
+    expect(sets.length).toBe(
+      await one(sql`select count(*)::int as n from set_logs s
+                    join session_exercises se on se.id = s.session_exercise_id
+                    join workout_sessions w on w.id = se.session_id where w.user_id = ${a.userId}`),
+    );
+    expect(data.tables.workout_templates?.length).toBeGreaterThan(0);
+    expect(data.tables.template_exercises?.length).toBeGreaterThan(0);
+
+    const json = JSON.stringify(data.tables);
+    expect(json).not.toContain(b.userId);
+    const bMeal = await ctx.handle.db.execute<{ id: string }>(
+      sql`select id from meals where user_id = ${b.userId} limit 1`,
+    );
+    expect(bMeal.rows[0]).toBeDefined();
+    expect(json).not.toContain(bMeal.rows[0]?.id ?? 'x');
   });
 
   it('rejects a wrong password or missing confirmation and keeps the data', async () => {

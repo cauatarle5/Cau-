@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { ApiError, isNetworkError } from '@/lib/api';
 import { setOfflineUser } from '@/offline/kv';
 import { forgetSession, lastUser, rememberUser } from '@/offline/last-session';
+import { nextOfflineMode } from '@/offline/offline-mode';
 import type { UserPublic } from '@atlas/schemas';
 
 import { useMe } from '../hooks/use-auth';
@@ -46,8 +47,12 @@ export function RequireAuth({ children }: { children: (user: UserPublic) => Reac
   // Fica "grudado" até a API responder: um refetch sem dados volta a query para `pending` e
   // desmontaria a tela a cada tentativa.
   const [offline, setOffline] = useState(false);
-  if (isNetworkError(me.error) && !offline) setOffline(true);
-  if ((me.data || unauthenticated) && offline) setOffline(false);
+  const nextOffline = nextOfflineMode(offline, {
+    networkError: isNetworkError(me.error),
+    hasData: me.data !== undefined,
+    reset: unauthenticated,
+  });
+  if (nextOffline !== offline) setOffline(nextOffline);
   const offlineUser = offline && !me.data ? lastUser() : null;
   const user = me.data?.user ?? offlineUser;
 

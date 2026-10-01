@@ -6,7 +6,7 @@ import { create } from 'zustand';
 import { kvDel, kvGet, kvSet, onOfflineUserChange } from '@/offline/kv';
 import { enqueue, onSynced, useSyncStore, type QueuedOp } from '@/offline/queue';
 import { setRowCount } from '@atlas/core';
-import type { ExerciseDto, SessionDto, SessionExerciseDto, SetResult } from '@atlas/schemas';
+import type { ExerciseDto, SessionDto, SessionExerciseDto } from '@atlas/schemas';
 
 import { trainingApi } from './api';
 
@@ -309,15 +309,20 @@ export const activeActions = {
   },
 };
 
-/** Respostas da fila: recordes das séries e fantasmas de exercícios adicionados/substituídos. */
-function handleSynced(op: QueuedOp, response: unknown) {
+/**
+ * Respostas da fila: recordes das séries e fantasmas de exercícios adicionados/substituídos.
+ * Validadas com zod (a fila pode ser reenviada depois de um deploy); o schema só carrega quando há
+ * sincronização (ADR-062).
+ */
+async function handleSynced(op: QueuedOp, response: unknown) {
+  if (!get().session) return;
+  const { sessionSchema, setResultSchema } = await import('@atlas/schemas');
   const session = get().session;
   if (!session) return;
   if (op.method === 'POST' && /^\/session-exercises\/[^/]+\/sets$/.test(op.path)) {
-    // Resposta já validada pela API (ADR-062): só confere a forma esperada da rota.
-    const result = response as Partial<SetResult> | null;
-    if (!result?.set || !Array.isArray(result.records) || result.records.length === 0) return;
-    const { set, records } = result as SetResult;
+    const parsed = setResultSchema.safeParse(response);
+    if (!parsed.success || parsed.data.records.length === 0) return;
+    const { set, records } = parsed.data;
     const se = session.exercises.find((e) => e.id === set.sessionExerciseId);
     useActiveWorkout.setState({
       records: [
@@ -327,9 +332,9 @@ function handleSynced(op: QueuedOp, response: unknown) {
     });
     return;
   }
-  const fromApi = response as Partial<SessionDto> | null;
-  if (fromApi?.id !== session.id || !Array.isArray(fromApi.exercises)) return;
-  const server = new Map(fromApi.exercises.map((e) => [e.id, e]));
+  const parsed = sessionSchema.safeParse(response);
+  if (!parsed.success || parsed.data.id !== session.id) return;
+  const server = new Map(parsed.data.exercises.map((e) => [e.id, e]));
   update((s) => ({
     ...s,
     exercises: s.exercises.map((e) => {
@@ -342,7 +347,9 @@ function handleSynced(op: QueuedOp, response: unknown) {
 }
 
 if (typeof window !== 'undefined') {
-  onSynced(handleSynced);
+  onSynced((op, response) => {
+    void handleSynced(op, response);
+  });
   // Outro usuário no aparelho: nada do treino anterior fica na memória.
   onOfflineUserChange(() => {
     useActiveWorkout.setState({

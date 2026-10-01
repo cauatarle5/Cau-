@@ -61,8 +61,14 @@ export function QuickLogFab() {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [kind, setKind] = useState<Exclude<Kind, 'workout'> | null>(null);
   const [open, setOpen] = useState(false);
+  const [shownOn, setShownOn] = useState(pathname);
 
-  // Fecha ao trocar de tela.
+  // Fecha ao trocar de tela (inclusive para uma tela sem o botão, onde o diálogo some sem `close`).
+  if (shownOn !== pathname) {
+    setShownOn(pathname);
+    setOpen(false);
+    setKind(null);
+  }
   useEffect(() => {
     dialogRef.current?.close();
   }, [pathname]);

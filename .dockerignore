@@ -7,8 +7,10 @@
 **/test-results
 **/*.tsbuildinfo
 .git
-.env
-.env.*
-!.env.example
+# Segredos fora do contexto de build (padrões valem a partir da raiz: inclui deploy/.env).
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.production.example
 apps/api/eval-reports
 deploy/backups

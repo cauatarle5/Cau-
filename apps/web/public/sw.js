@@ -2,10 +2,23 @@
 // - /_next/static: cache-first (arquivos com hash, imutáveis).
 // - Navegações: network-first; sem rede, a última cópia da página ou /offline.
 // - /api: nunca passa pelo cache (dados do usuário; a fila offline cuida das escritas).
-const VERSION = 'v1';
+const VERSION = 'v2';
 const STATIC = `atlas-static-${VERSION}`;
 const PAGES = `atlas-pages-${VERSION}`;
 const PRECACHE = ['/offline', '/icons/icon-192.png', '/manifest.webmanifest'];
+// Limites dos caches: chunks antigos de deploys anteriores e páginas de treinos passados saem.
+const MAX_STATIC = 300;
+const MAX_PAGES = 40;
+
+/** Remove as entradas mais antigas (ordem de inserção) acima do limite; o pré-cache fica. */
+async function trim(cacheName, max) {
+  const cache = await caches.open(cacheName);
+  const keys = (await cache.keys()).filter((k) => !PRECACHE.includes(new URL(k.url).pathname));
+  await Promise.all(keys.slice(0, Math.max(0, keys.length - max)).map((k) => cache.delete(k)));
+}
+
+/** Só guarda respostas próprias, completas e sem redirecionamento (navegação recusa redirect). */
+const cacheable = (res) => res.ok && res.type === 'basic' && !res.redirected;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -36,7 +49,10 @@ async function cacheFirst(request) {
   const hit = await cache.match(request);
   if (hit) return hit;
   const res = await fetch(request);
-  if (res.ok) await cache.put(request, res.clone());
+  if (res.ok) {
+    await cache.put(request, res.clone());
+    await trim(STATIC, MAX_STATIC);
+  }
   return res;
 }
 
@@ -44,7 +60,10 @@ async function networkFirstPage(request) {
   const cache = await caches.open(PAGES);
   try {
     const res = await fetch(request);
-    if (res.ok && res.type === 'basic') await cache.put(request, res.clone());
+    if (cacheable(res)) {
+      await cache.put(request, res.clone());
+      await trim(PAGES, MAX_PAGES);
+    }
     return res;
   } catch {
     return (
@@ -79,7 +98,10 @@ self.addEventListener('message', (event) => {
     caches.open(PAGES).then(async (cache) => {
       try {
         const res = await fetch(url, { credentials: 'same-origin' });
-        if (res.ok && res.type === 'basic') await cache.put(url, res);
+        if (cacheable(res)) {
+          await cache.put(url, res);
+          await trim(PAGES, MAX_PAGES);
+        }
       } catch {
         // sem rede: fica a cópia anterior, se houver
       }

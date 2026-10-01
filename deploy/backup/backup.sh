@@ -5,10 +5,15 @@ set -eu
 : "${BACKUP_DIR:=/backups}"
 : "${BACKUP_KEEP_DAILY:=14}"
 : "${BACKUP_KEEP_WEEKLY:=8}"
+# Pelo menos 1: a cópia recém-criada nunca é apagada pela retenção.
+[ "$BACKUP_KEEP_DAILY" -ge 1 ] || BACKUP_KEEP_DAILY=1
+[ "$BACKUP_KEEP_WEEKLY" -ge 1 ] || BACKUP_KEEP_WEEKLY=1
 mkdir -p "$BACKUP_DIR/daily" "$BACKUP_DIR/weekly"
 
 stamp=$(date +%Y%m%d-%H%M%S)
 file="$BACKUP_DIR/daily/atlas-$stamp.dump"
+# Dump que falhou não deixa arquivo parcial para trás.
+trap 'rm -f "$file.partial"' EXIT
 pg_dump -Fc --no-owner --no-privileges -f "$file.partial"
 # Confere que o arquivo é legível antes de considerá-lo válido.
 pg_restore --list "$file.partial" > /dev/null

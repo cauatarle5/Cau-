@@ -15,7 +15,7 @@ export function createAccountRepository(db: Database) {
       const out: Record<string, Record<string, unknown>[]> = {};
       for (const t of userTables()) {
         if (EXPORT_EXCLUDED.has(t.name)) continue;
-        out[t.name] = await db.select().from(t.table).where(eq(t.userId, userId));
+        out[t.name] = await db.select().from(t.table).where(t.ownedBy(userId));
       }
       return out;
     },

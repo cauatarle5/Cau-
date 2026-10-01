@@ -504,3 +504,22 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
 - **Consequências:**
   - Uma resposta fora do contrato não é mais barrada no cliente. O teste de contrato fica na API (serializador) e nos testes de integração.
   - O ganho é medido por `pnpm perf`.
+
+## ADR-063: Correções da revisão da Fase 8
+- **Status:** aceita (complementa ADR-058 a ADR-062)
+- **Contexto:** a revisão 16.3 achou dois problemas altos (exportação incompleta e loop de render offline), dois médios (validação da fila offline divergindo da ADR-062 e segredos no contexto de build) e cinco baixos.
+- **Decisão:**
+  - **Exportação:**
+    - `userTables()` inclui, de forma transitiva, as tabelas filhas ligadas por FK `on delete cascade`: itens de refeição, exercícios e séries das sessões, templates, mesociclos, ingredientes, nutrientes e medidas de alimentos próprios.
+    - É exatamente o conjunto que a exclusão apaga.
+    - O teste compara com o grafo de FKs em cascata do Postgres e confere a completude das filhas.
+  - **Modo offline das portas:** a transição é uma função pura (`nextOfflineMode`) que prefere o dado. Com dado em cache e refetch falhando, não alterna mais.
+  - **Fila offline do treino:** volta a validar com zod, carregado sob demanda, como diz a ADR-062.
+  - **`.dockerignore`:** ignora `**/.env*`, incluindo `deploy/.env`.
+  - **Backup:**
+    - dump que falha não deixa arquivo parcial;
+    - a retenção mínima é 1;
+    - o teste usa o `PGDATABASE` do container e um `--env-file` explícito.
+  - **Service worker (`v2`):** não guarda respostas redirecionadas e limita os caches a 300 estáticos e 40 páginas, preservando o pré-cache.
+  - **Caddy:** `X-Frame-Options: DENY` e `frame-ancestors 'none'`.
+  - **Botão de registro rápido:** reinicia o estado ao trocar de tela.

@@ -8,6 +8,7 @@ import { FullPageLoading, RequireAuth } from '@/features/auth/components/require
 import { useProfile } from '@/features/profile/hooks/use-profile';
 import { isNetworkError } from '@/lib/api';
 import { lastOnboardingComplete, rememberOnboarding } from '@/offline/last-session';
+import { nextOfflineMode } from '@/offline/offline-mode';
 
 /** Enquanto o onboarding não estiver completo, leva para /onboarding (ADR-020). */
 function OnboardingGate({ userName, children }: { userName: string; children: ReactNode }) {
@@ -25,8 +26,11 @@ function OnboardingGate({ userName, children }: { userName: string; children: Re
 
   // Sem rede: o onboarding já concluído neste aparelho basta para abrir o app (ADR-060).
   const [offline, setOffline] = useState(false);
-  if (isNetworkError(profile.error) && !offline) setOffline(true);
-  if (profile.data && offline) setOffline(false);
+  const nextOffline = nextOfflineMode(offline, {
+    networkError: isNetworkError(profile.error),
+    hasData: profile.data !== undefined,
+  });
+  if (nextOffline !== offline) setOffline(nextOffline);
   const offlineOk = offline && lastOnboardingComplete();
   if ((!profile.data && !offlineOk) || incomplete) return <FullPageLoading />;
   return <AppShell userName={userName}>{children}</AppShell>;
