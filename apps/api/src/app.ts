@@ -21,6 +21,7 @@ import type { Database } from '@atlas/db';
 
 import type { AppConfig } from './config';
 import { startJobs } from './jobs/worker';
+import { accountRoutes, createAccountRepository, createAccountService } from './modules/account';
 import { analyticsRoutes } from './modules/analytics';
 import { authRoutes } from './modules/auth/index';
 import { bodyRoutes } from './modules/body';
@@ -130,6 +131,11 @@ export async function buildApp({
       healthRoutes(v1, { db });
       authRoutes(v1, {
         service: svc.auth,
+        cookieSecure: config.cookieSecure,
+        rateLimitMax: config.authRateLimitMax,
+      });
+      accountRoutes(v1, {
+        service: createAccountService(createAccountRepository(db)),
         cookieSecure: config.cookieSecure,
         rateLimitMax: config.authRateLimitMax,
       });

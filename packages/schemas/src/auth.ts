@@ -39,3 +39,19 @@ export type UserPublic = z.infer<typeof userPublicSchema>;
 
 export const authUserResponseSchema = z.object({ user: userPublicSchema });
 export type AuthUserResponse = z.infer<typeof authUserResponseSchema>;
+
+/** Exclusão de conta (LGPD): senha atual e a palavra de confirmação. */
+export const deleteAccountInputSchema = z.object({
+  password: z.string().min(1, { message: 'Informe sua senha' }).max(128),
+  confirmation: z.literal('EXCLUIR', { message: 'Digite EXCLUIR para confirmar' }),
+});
+export type DeleteAccountInput = z.infer<typeof deleteAccountInputSchema>;
+
+/** Exportação completa (LGPD): uma lista de linhas por tabela. */
+export const accountExportSchema = z.object({
+  exportedAt: z.string(),
+  format: z.literal('atlas-export-v1'),
+  user: z.record(z.string(), z.unknown()),
+  tables: z.record(z.string(), z.array(z.record(z.string(), z.unknown()))),
+});
+export type AccountExport = z.infer<typeof accountExportSchema>;

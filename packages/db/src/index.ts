@@ -16,3 +16,4 @@ export {
   sql,
 } from 'drizzle-orm';
 export { seedCatalogs, EQUIPMENT_SEED } from './seed';
+export { userTables, type UserTable } from './user-tables';

@@ -432,3 +432,47 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
     - "Dormi mal" exige o contexto/plano do dia e a proposta de adaptação.
     - `get_daily_context` não é exigido em "o que comer" porque já vai no contexto injetado.
     - Erro em ferramenta de leitura reprova. Erro em `propose_*` é resposta das regras e conta como uso.
+
+## ADR-058: Deploy em um host com Docker Compose
+- **Status:** aceita (resolve o deploy deixado em aberto na ADR-001, ADR-007 e ADR-014)
+- **Contexto:** a Fase 8 pede deploy em produção. A P3.2 cita Vercel mais banco gerenciado como opção. Para um usuário só, a opção mais simples e portátil é um host único.
+- **Decisão:**
+  - Imagens Docker da API (Fastify) e do web (Next `standalone`).
+  - Um serviço `migrate` roda `db:migrate` e o seed de catálogo antes da API subir.
+  - Caddy na frente, com TLS automático e um domínio só. O web mantém o rewrite `/api` (sem CORS, ADR-007).
+  - `TRUST_PROXY=1` e `WEB_ORIGIN=https://<domínio>`.
+  - Postgres 16 com volume persistente e sem porta exposta.
+  - O seed demo nunca roda em produção, e `AI_FAKE` já é recusado (ADR-056).
+- **Consequências:** roda em qualquer VPS ou PaaS com Dockerfile. Vercel mais banco gerenciado continua possível; exige um segundo domínio de cookie e outra ADR. Múltiplas instâncias pedem um store compartilhado de rate limit (ADR-014).
+
+## ADR-059: Backup diário do banco
+- **Status:** aceita
+- **Decisão:**
+  - Serviço `backup` no compose faz `pg_dump -Fc` diário às 03:30 do fuso configurado.
+  - Retenção: 14 cópias diárias e 8 semanais (domingo), num volume próprio.
+  - Cópia externa para S3 compatível quando `BACKUP_S3_*` estiver definido.
+  - `scripts/restore.sh` restaura um arquivo.
+  - O CI testa o ciclo completo: dump, restauração num banco vazio e conferência das contagens.
+- **Consequências:** sem cópia externa configurada, o backup fica no mesmo host; o roteiro de deploy recomenda configurá-la.
+
+## ADR-060: PWA e treino offline com recarga
+- **Status:** aceita (complementa ADR-034)
+- **Decisão:**
+  - `app/manifest.ts` e ícones PNG gerados do `icon.svg`.
+  - Service worker escrito à mão (`public/sw.js`), sem dependência de build. Ele cobre:
+    - `/_next/static` com cache-first;
+    - navegações network-first, com fallback para a última cópia e para `/offline`;
+    - `/api`, que nunca entra no cache.
+  - O registro só acontece em build de produção.
+  - O usuário da sessão e os dados do treino ativo ficam no `kv` de IndexedDB por usuário, que a tela lê quando a rede falha. Fila e idempotência não mudam.
+- **Consequências:** recarregar o treino ativo sem rede funciona depois da primeira visita online. As outras telas mostram a última cópia da página, sem dados novos.
+
+## ADR-061: Exportação e exclusão de conta
+- **Status:** aceita (P3.4, LGPD)
+- **Decisão:**
+  - `GET /account/export` devolve um JSON (`atlas-export-v1`) com o usuário sem o hash da senha e todas as tabelas com `user_id`, derivadas do schema (`userTables()`).
+  - Ficam de fora `sessions` (segredo) e `idempotency_keys` (respostas técnicas).
+  - Um teste compara a exportação com `information_schema`: uma tabela nova com `user_id` entra sozinha ou quebra o teste.
+  - `DELETE /account` exige a senha atual e a palavra `EXCLUIR`, apaga o usuário (todas as FKs para `users` são `on delete cascade`) e limpa o cookie. O web limpa os dados offline do aparelho.
+  - Erro `INVALID_PASSWORD` (400).
+- **Consequências:** a exclusão é definitiva e imediata, sem período de carência. Backups antigos ainda contêm os dados até saírem da retenção (14 dias e 8 semanas), e isso fica documentado no roteiro.
