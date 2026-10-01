@@ -78,6 +78,13 @@
       "when": 1790862809457,
       "tag": "0010_agenda_history",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790865430700,
+      "tag": "0011_phase6_intelligence",
+      "breakpoints": true
     }
   ]
 }

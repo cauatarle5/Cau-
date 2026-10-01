@@ -8,3 +8,4 @@ export * from './meals';
 export * from './training';
 export * from './recipes';
 export * from './recovery';
+export * from './intelligence';

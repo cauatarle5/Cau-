@@ -181,3 +181,13 @@ export const painRegionEnum = pgEnum('pain_region', [
   'other',
 ]);
 export const painTypeEnum = pgEnum('pain_type', ['joint', 'muscle', 'other']);
+export const energyConfidenceEnum = pgEnum('energy_confidence', ['low', 'medium', 'high']);
+export const insightCategoryEnum = pgEnum('insight_category', [
+  'training',
+  'nutrition',
+  'body',
+  'recovery',
+  'integration',
+]);
+export const insightSeverityEnum = pgEnum('insight_severity', ['info', 'attention', 'warning']);
+export const insightStatusEnum = pgEnum('insight_status', ['new', 'seen', 'dismissed', 'acted']);
