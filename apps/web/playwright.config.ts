@@ -36,10 +36,14 @@ export default defineConfig({
       env: { AUTH_RATE_LIMIT_MAX: '100', AI_FAKE: 'true' },
     },
     {
-      command: 'pnpm --filter @atlas/web dev',
+      // Build de produção por padrão: service worker, PWA e desempenho reais (ADR-060).
+      // `E2E_WEB_DEV=1` usa o servidor de dev para iterar mais rápido.
+      command: process.env.E2E_WEB_DEV
+        ? 'pnpm --filter @atlas/web dev'
+        : 'pnpm --filter @atlas/web build && pnpm --filter @atlas/web start',
       url: 'http://localhost:3000/entrar',
       reuseExistingServer: !isCI,
-      timeout: 120_000,
+      timeout: 300_000,
     },
   ],
 });

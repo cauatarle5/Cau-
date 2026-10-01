@@ -7,6 +7,9 @@ import { Providers } from './providers';
 export const metadata: Metadata = {
   title: 'Atlas',
   description: 'Central pessoal de treino, nutrição, composição corporal e performance.',
+  applicationName: 'Atlas',
+  appleWebApp: { capable: true, title: 'Atlas', statusBarStyle: 'default' },
+  icons: { apple: '/icons/apple-touch-icon.png' },
 };
 
 export const viewport: Viewport = {
