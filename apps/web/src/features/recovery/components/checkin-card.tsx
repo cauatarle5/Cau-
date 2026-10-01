@@ -145,7 +145,11 @@ export function CheckinCard({ date }: { date: string }) {
               fatigue: v.fatigue,
               soreness: v.soreness,
             };
-            save.mutate(body, { onSuccess: () => { setEditing(false); } });
+            save.mutate(body, {
+              onSuccess: () => {
+                setEditing(false);
+              },
+            });
           }}
         >
           Salvar check-in

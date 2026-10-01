@@ -120,7 +120,11 @@ export function ActivityForm({ today }: { today: string }) {
               intensityRpe: rpe,
               lowerBodyDemand: demand,
             },
-            { onSuccess: () => { setMessage(`${SPORT_LABELS[sport]} registrado.`); } },
+            {
+              onSuccess: () => {
+                setMessage(`${SPORT_LABELS[sport]} registrado.`);
+              },
+            },
           );
         }}
       >

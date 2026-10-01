@@ -20,7 +20,6 @@ import { activeSessionId, loadSession } from '../active-store';
 import { trainingApi, type SessionStartInput } from '../api';
 import { useActivateProgram, usePrograms, useSessions } from '../hooks/use-training';
 
-
 import { ProgramBuilder } from './program-builder';
 import { SyncIndicator } from './sync-indicator';
 
