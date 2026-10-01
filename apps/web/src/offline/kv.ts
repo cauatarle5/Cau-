@@ -94,3 +94,16 @@ export async function kvDel(key: string): Promise<void> {
   }
   await run('readwrite', (s) => s.delete(k));
 }
+
+/** Apaga todos os dados offline do usuário atual neste aparelho (exclusão de conta, ADR-061). */
+export async function kvClearUser(): Promise<void> {
+  if (!user) return;
+  const prefix = `${user}:`;
+  if (typeof indexedDB === 'undefined') {
+    for (const k of [...memory.keys()]) if (k.startsWith(prefix)) memory.delete(k);
+    return;
+  }
+  const keys = (await run('readonly', (s) => s.getAllKeys())) ?? [];
+  for (const k of keys)
+    if (typeof k === 'string' && k.startsWith(prefix)) await run('readwrite', (s) => s.delete(k));
+}

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/empty-state';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
+import { AccountDataCard } from '@/features/account/components/account-data-card';
 import { useLogout, useMe } from '@/features/auth/hooks/use-auth';
 import { useOnboarding } from '@/features/onboarding/store';
 import { useGoals, useProfile } from '@/features/profile/hooks/use-profile';
@@ -73,6 +74,7 @@ export default function ProfilePage() {
             </Button>
           </div>
         </Card>
+        <AccountDataCard />
       </div>
     </>
   );
