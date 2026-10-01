@@ -40,6 +40,11 @@ describe('groundedNumbers (ADR-055)', () => {
     expect(r).toEqual({ ok: true, ungrounded: [], checked: 7 });
   });
 
+  it('negative halves round away from zero, like Intl', () => {
+    expect(groundedNumbers('Tendência: -0,4 kg.', [{ changeKg: -0.35 }]).ok).toBe(true);
+    expect(groundedNumbers('Tendência: −0,3 kg.', [{ changeKg: -0.35 }]).ok).toBe(false);
+  });
+
   it('flags invented numbers and dates', () => {
     const r = groundedNumbers('Você ganhou 2,5 kg e comeu 2.400 kcal em 22/09.', [tool]);
     expect(r.ok).toBe(false);

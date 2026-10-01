@@ -58,7 +58,9 @@ export function collectSourceValues(sources: readonly unknown[]): {
   return { numbers, monthDays };
 }
 
-const roundTo = (v: number, d: number) => Math.round(v * 10 ** d) / 10 ** d;
+/** Arredonda como o `Intl.NumberFormat` exibe: metade para longe do zero (−0,35 → −0,4). */
+const roundTo = (v: number, d: number) =>
+  (Math.sign(v) * Math.round(Math.abs(v) * 10 ** d + 1e-9)) / 10 ** d;
 
 /** O número exibido bate com algum número da fonte, com arredondamento e variações de unidade. */
 function matches(n: TextNumber, source: number): boolean {

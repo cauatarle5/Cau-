@@ -105,15 +105,16 @@ const PROTEIN_FOODS = new Set([
  * exercício estagnado, proteína baixa em 3 dos últimos 5 dias de treino e sono × tonelagem.
  * Termina recalculando recordes, GET adaptativo e insights.
  */
-export async function seedDemo(db: Database, opts: { today?: string } = {}) {
+export async function seedDemo(db: Database, opts: { today?: string; email?: string } = {}) {
+  const email = opts.email ?? DEMO_EMAIL;
   const today = opts.today ?? localDate(new Date(), DEMO_TZ);
   const start = addDays(today, -(DAYS - 1));
   const svc = createServices(db);
   const random = rng(20260101);
 
-  await db.delete(users).where(eq(users.email, DEMO_EMAIL));
+  await db.delete(users).where(eq(users.email, email));
   const issued = await svc.auth.register(
-    { name: 'Demo Atlas', email: DEMO_EMAIL, password: DEMO_PASSWORD },
+    { name: 'Demo Atlas', email, password: DEMO_PASSWORD },
     { userAgent: 'seed-demo', ip: null },
   );
   const userId = issued.user.id;
@@ -382,7 +383,7 @@ export async function seedDemo(db: Database, opts: { today?: string } = {}) {
   const insights = await svc.insights.refresh(userId, today);
   return {
     userId,
-    email: DEMO_EMAIL,
+    email,
     today,
     stagnantExerciseId: stagnantId ?? null,
     insights: insights.generated,

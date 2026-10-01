@@ -20,7 +20,8 @@
     "db:migrate": "pnpm --filter @atlas/db db:migrate",
     "db:seed": "pnpm --filter @atlas/db db:seed",
     "db:seed:demo": "pnpm --filter @atlas/api db:seed:demo",
-    "ai:eval": "pnpm --filter @atlas/ai ai:eval"
+    "ai:eval": "pnpm --filter @atlas/ai ai:eval",
+    "ai:eval:coach": "pnpm --filter @atlas/api ai:eval:coach"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

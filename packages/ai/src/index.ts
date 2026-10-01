@@ -6,3 +6,4 @@ export * from './coach/coach';
 export { COACH_SYSTEM, coachContextBlock } from './prompts/coach';
 export * from './summary/weekly';
 export * from './coach/scripted';
+export * from './evals/coach-cases';
