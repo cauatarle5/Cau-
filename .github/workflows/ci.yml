@@ -76,3 +76,42 @@ jobs:
           name: playwright-report
           path: apps/web/playwright-report
           retention-days: 7
+
+  deploy:
+    name: Deploy (imagens, smoke e backup)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Env de teste (DOMAIN=localhost usa a CA interna do Caddy)
+        run: |
+          cat > "$RUNNER_TEMP/prod.env" <<'ENV'
+          DOMAIN=localhost
+          ACME_EMAIL=ci@example.com
+          POSTGRES_PASSWORD=ci-secret'senha&x
+          JOBS_ENABLED=true
+          ENV
+      - name: Build das imagens
+        run: docker compose -f deploy/docker-compose.prod.yml --env-file "$RUNNER_TEMP/prod.env" build
+      - name: Sobe a stack de produção
+        run: docker compose -f deploy/docker-compose.prod.yml --env-file "$RUNNER_TEMP/prod.env" up -d
+      - run: curl -fsSk https://localhost/api/v1/health
+      - run: pnpm --filter @atlas/web exec playwright install --with-deps chromium
+      - name: Smoke contra a stack
+        run: pnpm --filter @atlas/web smoke
+        env:
+          SMOKE_URL: https://localhost
+      - name: Backup e restauração
+        run: deploy/test-backup.sh --env-file "$RUNNER_TEMP/prod.env"
+      - name: Logs
+        if: failure()
+        run: docker compose -f deploy/docker-compose.prod.yml --env-file "$RUNNER_TEMP/prod.env" logs --tail 200
+      - name: Derruba
+        if: always()
+        run: docker compose -f deploy/docker-compose.prod.yml --env-file "$RUNNER_TEMP/prod.env" down -v

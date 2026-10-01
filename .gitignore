@@ -11,3 +11,6 @@ playwright-report/
 test-results/
 .DS_Store
 apps/api/eval-reports/
+
+# Deploy
+deploy/.env

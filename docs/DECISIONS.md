@@ -439,8 +439,12 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
 - **Decisão:**
   - Imagens Docker da API (Fastify) e do web (Next `standalone`).
   - Um serviço `migrate` roda `db:migrate` e o seed de catálogo antes da API subir.
-  - Caddy na frente, com TLS automático e um domínio só. O web mantém o rewrite `/api` (sem CORS, ADR-007).
-  - `TRUST_PROXY=1` e `WEB_ORIGIN=https://<domínio>`.
+  - Caddy na frente, com TLS automático e um domínio só. `/api/*` vai direto para a API (SSE sem buffer, um proxy confiável só), e o resto vai para o web. Mesmo origin e sem CORS (ADR-007). O rewrite `/api/v1` do Next continua para dev e PaaS.
+  - `TRUST_PROXY` com a sub-rede fixa da rede interna (só o Caddy) e `WEB_ORIGIN=https://<domínio>`.
+  - Backup em container próprio (ADR-059).
+  - Validação:
+    - o CI builda as imagens, sobe a stack com `DOMAIN=localhost`, roda o smoke (`pnpm --filter @atlas/web smoke`) e o teste de backup e restauração;
+    - `docs/DEPLOY.md` é o roteiro.
   - Postgres 16 com volume persistente e sem porta exposta.
   - O seed demo nunca roda em produção, e `AI_FAKE` já é recusado (ADR-056).
 - **Consequências:** roda em qualquer VPS ou PaaS com Dockerfile. Vercel mais banco gerenciado continua possível; exige um segundo domínio de cookie e outra ADR. Múltiplas instâncias pedem um store compartilhado de rate limit (ADR-014).
@@ -451,8 +455,10 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
   - Serviço `backup` no compose faz `pg_dump -Fc` diário às 03:30 do fuso configurado.
   - Retenção: 14 cópias diárias e 8 semanais (domingo), num volume próprio.
   - Cópia externa para S3 compatível quando `BACKUP_S3_*` estiver definido.
-  - `scripts/restore.sh` restaura um arquivo.
-  - O CI testa o ciclo completo: dump, restauração num banco vazio e conferência das contagens.
+  - `restore.sh` (na imagem de backup) restaura um arquivo numa transação só.
+  - Cada dump é conferido com `pg_restore --list` antes de valer.
+  - `deploy/test-backup.sh` testa o ciclo completo: dump, restauração num banco vazio e conferência das contagens de todas as tabelas. Roda no CI.
+  - Imagem `postgres:16-alpine` (crond e tzdata incluídos), com `aws-cli` só para a cópia externa.
 - **Consequências:** sem cópia externa configurada, o backup fica no mesmo host; o roteiro de deploy recomenda configurá-la.
 
 ## ADR-060: PWA e treino offline com recarga

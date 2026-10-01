@@ -16,9 +16,11 @@
     "next.config.ts",
     "playwright.config.ts",
     "playwright.perf.config.ts",
+    "playwright.smoke.config.ts",
     "vitest.config.ts",
     "e2e",
-    "perf"
+    "perf",
+    "smoke"
   ],
   "exclude": ["node_modules"]
 }

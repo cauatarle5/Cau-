@@ -10,7 +10,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test:e2e": "playwright test",
     "test": "vitest run",
-    "perf": "playwright test -c playwright.perf.config.ts"
+    "perf": "playwright test -c playwright.perf.config.ts",
+    "smoke": "playwright test -c playwright.smoke.config.ts"
   },
   "dependencies": {
     "@atlas/core": "workspace:*",

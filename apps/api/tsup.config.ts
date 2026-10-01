@@ -1,7 +1,8 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/server.ts'],
+  // `release`: migrations + catálogos antes da API subir (ADR-058).
+  entry: { server: 'src/server.ts', release: 'scripts/release.ts' },
   format: ['esm'],
   platform: 'node',
   target: 'node22',
