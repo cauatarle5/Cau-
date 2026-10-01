@@ -290,3 +290,38 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
   - **Sessão a partir do planejado:** iniciar de novo devolve a sessão já iniciada; apagar a sessão devolve o planejado a `planned`.
   - **Prontidão e carga:** o ajuste de −10 por esporte de pernas olha só a atividade de ontem; a adaptação usa a data do treino agendado; a EWMA crônica começa em zero e o ACWR só é definido com 28 dias de histórico (usuário novo não recebe alerta falso).
   - **Dor:** `sessionId` e `duringExerciseId` precisam ser do usuário (404); violação de chave estrangeira vira 400 `BAD_REQUEST`, nunca 500.
+
+## ADR-048: Tipo do dia pelo plano real
+- **Status:** aceita (complementa ADR-026)
+- **Contexto:** P9 pede que mudar o treino ou registrar uma atividade recalcule o tipo do dia e as metas dos dias futuros da semana; até a Fase 5 o tipo vinha só da disponibilidade.
+- **Decisão:**
+  - Academia no dia: sessão feita ou treino agendado (`planned_workouts` não pulado). Sessão com RPE ≥ 8 ou treino agendado em semana de RIR 1 → `hard_training`; sem RPE registrado ou RIR maior → `training`.
+  - Esporte no dia: atividade registrada ou esporte fixo do perfil naquele dia da semana. As kcal do esporte usam a atividade registrada (RPE ≥ 7 conta como competitivo); sem registro, o esporte fixo.
+  - Sem nenhum programa ativo com agenda, a disponibilidade de academia continua como fallback (comportamento anterior).
+  - A sobrescrita manual continua valendo. Hoje e o futuro são recalculados a cada pedido (ADR-026), então mover um treino ou registrar futebol à noite muda a meta na hora; o passado mantém o snapshot.
+
+## ADR-049: Jobs com pg-boss
+- **Status:** aceita
+- **Contexto:** P5.3 (GET semanal segunda 04:00 no fuso do usuário) e P10.1 (insights em jobs).
+- **Decisão:** o worker roda no mesmo processo da API e é ligado por `JOBS_ENABLED=true` (desligado nos testes e por padrão no dev). Um job agendado de hora em hora percorre os usuários e processa só os que estão na hora local certa: GET adaptativo segunda às 04:00 e insights diários às 05:00. Os dois são idempotentes por (usuário, semana) e (usuário, dia). Um job diário apaga `idempotency_keys` com mais de 7 dias. `POST nutrition/energy-estimates/refresh` e `POST insights/refresh` rodam o mesmo código sob demanda, para testes e para o seed. A carga continua calculada sob demanda (ADR-044); a tabela `training_load_daily` fica adiada por não ser necessária.
+
+## ADR-050: Insights determinísticos
+- **Status:** aceita
+- **Contexto:** P9, P10.1 e DATA_MODEL 4.8.
+- **Decisão:**
+  - As regras são funções puras em `packages/core/src/insights`. Recebem métricas já calculadas e devolvem candidatos com tipo estável, categoria, severidade, chave de deduplicação, título e texto em pt-BR, e os números em `data`. Nada passa por LLM.
+  - Tipos: `LOW_PROTEIN_STREAK`, `MUSCLE_BELOW_MEV`, `EXERCISE_STAGNANT`, `PERFORMANCE_DROP`, `HIGH_ACWR`, `DETRAINING`, `HIGH_MONOTONY`, `WEIGHT_LOSS_TOO_FAST`, `WEIGHT_TREND_OFF_GOAL`, `LOW_CONSISTENCY`, `NEW_PR`, `MISSED_WEIGH_INS`, `LOW_ENERGY_HARD_DAYS`, `EARLY_DELOAD`, além das correlações (`SLEEP_PERFORMANCE_LINK`, `CARBS_TONNAGE_LINK`, `KCAL_READINESS_LINK`).
+  - Correlações por Pearson entre séries diárias alinhadas; só geram insight com n ≥ 10 e |r| ≥ 0,4, e o texto descreve associação, nunca causa.
+  - Deduplicação por (usuário, tipo, chave): se já existe um insight ativo (não expirado) com a mesma chave, ele é atualizado sem voltar o status para `new`; um insight dispensado não reaparece antes de expirar. A validade padrão é de 7 dias (`NEW_PR`: 3 dias).
+  - Status `new`, `seen`, `dismissed` ou `acted`. A tela Hoje mostra o mais severo ainda `new`.
+
+## ADR-051: Detalhes do GET adaptativo
+- **Status:** aceita
+- **Contexto:** P5.3 deixa em aberto o que é "dia marcado como completo", qual é o GET anterior e sobre o que vale o limite de ±150 kcal.
+- **Decisão:**
+  - Dia completo = 3 ou mais refeições registradas (não existe marcação manual de dia completo).
+  - A janela é de até 28 dias terminando na véspera do cálculo. Δ tendência = tendência no último dia com pesagem − tendência no primeiro, com `dias` = distância entre esses dois dias.
+  - GET anterior = o último `tdee_used` salvo; sem estimativa anterior, o GET por fórmula.
+  - Confiança `low` quando os critérios não são atingidos: o GET usado continua o da fórmula.
+  - O limite de ±150 kcal vale para o GET usado em relação ao anterior. Como o ajuste do objetivo é proporcional ao GET, a meta muda no máximo cerca de 150 kcal por semana.
+  - As metas usam `tdee_used` da estimativa mais recente com confiança `medium` ou `high` (`method = 'adaptive'`), sempre passando pelas travas da P5.7.
