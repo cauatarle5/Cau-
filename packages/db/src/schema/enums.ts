@@ -191,3 +191,18 @@ export const insightCategoryEnum = pgEnum('insight_category', [
 ]);
 export const insightSeverityEnum = pgEnum('insight_severity', ['info', 'attention', 'warning']);
 export const insightStatusEnum = pgEnum('insight_status', ['new', 'seen', 'dismissed', 'acted']);
+export const aiRoleEnum = pgEnum('ai_role', ['user', 'assistant']);
+export const aiActionTypeEnum = pgEnum('ai_action_type', [
+  'log_meal',
+  'plan_meal',
+  'swap_exercise',
+  'adapt_workout',
+  'update_goal',
+]);
+export const aiProposalStatusEnum = pgEnum('ai_proposal_status', [
+  'pending',
+  'accepted',
+  'rejected',
+  'expired',
+]);
+export const summarySourceEnum = pgEnum('summary_source', ['ai', 'template']);

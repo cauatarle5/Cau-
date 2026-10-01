@@ -85,6 +85,13 @@
       "when": 1790865430700,
       "tag": "0011_phase6_intelligence",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790874762701,
+      "tag": "0012_phase7_coach",
+      "breakpoints": true
     }
   ]
 }
