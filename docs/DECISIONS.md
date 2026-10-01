@@ -259,3 +259,23 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
   - **Complementos (P7.3):** proteína < 85% ou fibra < 70% previstas geram `POST nutrition/complements`: alimentos com ≥ 10 g de proteína ou ≥ 3 g de fibra por 100 g, mais densos por kcal, histórico primeiro, gramas para cobrir o que falta (10 g, até 300 g). No painel, dentro de "Detalhes", para não cobrir a tela no celular.
   - **Sugestões:** o usuário escolhe a refeição de destino; itens entram na refeição planejada do slot, se houver. Limites padrão = `plannedRemaining` (core) e tamanhos do pool por `poolSizing` (core).
   - **Substituição:** o histórico do usuário na categoria entra sempre nos candidatos, além do catálogo (ordenado por verificado e nome).
+
+## ADR-043: Agenda e mesociclos
+- **Status:** aceita
+- **Contexto:** P8.7 define periodização padrão; DATA_MODEL 4.3 prevê `mesocycles` e `planned_workouts`.
+- **Decisão:** ativar um programa (gerado ou manual) cria 3 mesociclos padrão de 5 semanas (RIR 3/2/2/1 e deload RIR 4; volume ×1,0/1,1/1,15/1,2/0,5) e materializa `planned_workouts` desde a data de ativação até o fim do programa. Templates são distribuídos nos dias de academia da disponibilidade, em ordem; sessões com pernas são afastadas dos dias vizinhos aos esportes fixos quando possível. Sem disponibilidade de academia, não há agenda (treino livre continua). Ativar outro programa remove os planejados futuros do anterior. Mover/pular por `PATCH planned-workouts/:id`.
+
+## ADR-044: Carga interna e prontidão sob demanda
+- **Status:** aceita
+- **Contexto:** DATA_MODEL 4.4 prevê `training_load_daily` por job; não há jobs ainda.
+- **Decisão:** carga do dia (sRPE de sessões e atividades), aguda (soma de 7 dias), crônica (EWMA diária com N = 28, × 7 para equivaler a uma semana), ACWR, monotonia e strain são calculados no core sob demanda, como as metas (ADR-015). A tabela e o job ficam para a Fase 6 (pg-boss junto com os insights). A prontidão é calculada e persistida ao salvar o check-in.
+
+## ADR-045: Adaptação do treino do dia
+- **Status:** aceita
+- **Contexto:** P8.6.
+- **Decisão:** `GET planned-workouts/:id/adapted` aplica no core a prontidão (amarelo: −1 série por exercício, RIR +1, sem tentativa de recorde; vermelho: metade das séries e RIR 4) e o contexto: esporte intenso nas últimas 24 h (RPE ≥ 7 com demanda de pernas 3, ou futebol/futsal/corrida com RPE ≥ 7) em sessão com pernas reduz 40% as séries de quadríceps, posteriores e glúteos e retira hinge composto; esporte nas próximas 24 h reduz 30% as séries de pernas; dor; tempo disponível (corta isolados do fim, depois séries de compostos, nunca o primeiro exercício). A explicação é montada por regras em pt-BR (sem LLM). Iniciar a sessão a partir do plano grava `adapted_payload` e `status = 'adapted'` quando houve mudança; sessões adaptadas não contam para a progressão dupla.
+
+## ADR-046: Registro de dor e regiões
+- **Status:** aceita
+- **Contexto:** P8.6 liga dor a exercícios; DATA_MODEL 4.3 tem `body_region` livre.
+- **Decisão:** regiões fixas (`shoulder`, `elbow`, `wrist`, `lower_back`, `hip`, `knee`, `ankle`, `neck`, `other`), cada uma ligada a músculos e tags de contraindicação do catálogo. Dor ≥ 4 nos últimos 7 dias marca exercícios ligados para substituição; ≥ 7, ou registrada em 3 sessões diferentes, gera recomendação de avaliação profissional e bloqueia a progressão (mantém a carga) naquele exercício.
