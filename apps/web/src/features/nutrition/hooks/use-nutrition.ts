@@ -37,6 +37,8 @@ function useInvalidateDay() {
     Promise.all([
       qc.invalidateQueries({ queryKey: nutritionKeys.all }),
       qc.invalidateQueries({ queryKey: mealKeys.all }),
+      // Contexto do dia (sinais) depende do consumido.
+      qc.invalidateQueries({ queryKey: ['insights'] }),
     ]);
 }
 

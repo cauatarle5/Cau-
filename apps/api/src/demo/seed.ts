@@ -265,7 +265,7 @@ export async function seedDemo(db: Database, opts: { today?: string } = {}) {
 
     for (const [order, te] of tpl.exercises.entries()) {
       const b = bundles.get(te.exerciseId);
-      const external = b?.exercise.loadType === 'external' || b?.exercise.loadType === 'assisted';
+      const external = b?.exercise.loadType === 'external';
       const st = state.get(te.exerciseId) ?? {
         load: b?.exercise.mechanics === 'compound' ? 50 + order * 5 : 12 + order * 2,
         reps: Math.min(te.repMax, te.repMin + 1),

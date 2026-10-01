@@ -13,6 +13,8 @@ const METHOD_LABELS = {
   mifflin_st_jeor: 'Mifflin-St Jeor',
   katch_mcardle: 'Katch-McArdle',
 } as const;
+const CONFIDENCE_LABELS = { medium: 'média', high: 'alta' } as const;
+
 const PROTEIN_BASIS = {
   total_weight: 'do peso',
   lean_mass: 'de massa magra',
@@ -75,10 +77,19 @@ function Explanation({ data }: { data: NonNullable<TargetsResponse['breakdown']>
             ' (nenhum informado).'
           )}
         </li>
-        <li>
-          <strong className="text-foreground">Gasto total estimado:</strong>{' '}
-          {formatNumber(data.tdee.kcal)} kcal/dia.
-        </li>
+        {data.adaptive ? (
+          <li>
+            <strong className="text-foreground">Gasto total:</strong>{' '}
+            {formatNumber(data.adaptive.kcal)} kcal/dia, estimativa baseada nos seus dados
+            (confiança {CONFIDENCE_LABELS[data.adaptive.confidence]}). Pela fórmula seriam{' '}
+            {formatNumber(data.adaptive.formulaKcal)} kcal/dia.
+          </li>
+        ) : (
+          <li>
+            <strong className="text-foreground">Gasto total estimado:</strong>{' '}
+            {formatNumber(data.tdee.kcal)} kcal/dia.
+          </li>
+        )}
         <li>
           <strong className="text-foreground">Ajuste pelo objetivo:</strong> {pct > 0 ? '+' : ''}
           {pct}% ({data.adjustment.kcalDelta >= 0 ? '+' : ''}
@@ -98,8 +109,9 @@ function Explanation({ data }: { data: NonNullable<TargetsResponse['breakdown']>
         </li>
       </ol>
       <p className="mt-3 text-xs text-muted-foreground">
-        Estimativa por fórmula. Quando houver 2 semanas de registros e pesagens, o gasto passa a ser
-        ajustado pelos seus dados.
+        {data.adaptive
+          ? 'O gasto é recalculado toda segunda-feira com sua ingestão e a tendência do peso das últimas 4 semanas, mudando no máximo 150 kcal por semana.'
+          : 'Estimativa por fórmula. Quando houver 2 semanas de registros e pesagens, o gasto passa a ser ajustado pelos seus dados.'}
       </p>
     </details>
   );
@@ -151,6 +163,12 @@ export function TargetsView({
           <p className="text-xs text-muted-foreground">
             Dias de treino, esporte e descanso variam em torno desta média.
           </p>
+          {data.breakdown.adaptive ? (
+            <p className="text-xs font-medium text-primary">
+              Estimativa baseada nos seus dados · confiança{' '}
+              {CONFIDENCE_LABELS[data.breakdown.adaptive.confidence]}
+            </p>
+          ) : null}
         </div>
         <p className="text-3xl font-semibold tabular-nums">
           {formatNumber(t.kcal)}

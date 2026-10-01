@@ -40,6 +40,7 @@ function useInvalidate() {
     Promise.all([
       qc.invalidateQueries({ queryKey: recoveryKeys.all }),
       qc.invalidateQueries({ queryKey: ['training'] }),
+      qc.invalidateQueries({ queryKey: ['insights'] }),
     ]);
 }
 
