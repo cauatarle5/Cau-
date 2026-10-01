@@ -90,9 +90,10 @@ Receita como alimento: `foods.source_code = 'recipe'`, `source_ref = recipe_id`.
 | Tabela | Colunas |
 |---|---|
 | insights | id, user_id, generated_at, period_start, period_end, category (`training\|nutrition\|body\|recovery\|integration`), type, severity (`info\|attention\|warning`), title_pt, body_pt, data jsonb, status (`new\|seen\|dismissed\|acted`), expires_at, dedup_key (ADR-050), updated_at. Único (user_id, type, dedup_key); índice (user_id, status, expires_at) |
-| ai_conversations | id, user_id, title, created_at, updated_at |
-| ai_messages | id, conversation_id, role (`user\|assistant\|tool`), content jsonb, tool_calls jsonb, tokens_in, tokens_out, model, created_at |
-| ai_action_proposals | id, user_id, conversation_id, action_type (`log_meal\|plan_meal\|swap_exercise\|adapt_workout\|update_goal\|create_recipe`), payload jsonb, status (`pending\|accepted\|rejected\|expired`), created_at, resolved_at |
+| ai_conversations | id, user_id, title, created_at, updated_at. Índice (user_id, updated_at) |
+| ai_messages | id, conversation_id, user_id, role (`user\|assistant`), text, content jsonb (blocos da API do turno, reenviados sem reescrever; resultados de ferramentas ficam no turno do assistente, ADR-054), tool_calls jsonb, ungrounded text[] (ADR-055), tokens_in, tokens_out, model, created_at. Índices (conversation_id, created_at) e (user_id, created_at) |
+| ai_action_proposals | id, user_id, conversation_id (SET NULL), action_type (`log_meal\|plan_meal\|swap_exercise\|adapt_workout\|update_goal`; `create_recipe` fica fora, ADR-056), payload jsonb (dados validados + linhas do cartão), summary, status (`pending\|accepted\|rejected\|expired`), result jsonb, expires_at (24 h), created_at, resolved_at. Índice (user_id, status, created_at) |
+| weekly_summaries | id, user_id, week_start, text, source (`ai\|template`), data jsonb (insumos), model, created_at. Único (user_id, week_start) (P10.5, ADR-056) |
 | parser_feedback | id, user_id, input_text, parsed jsonb, corrected jsonb, created_at |
 
 ## 4.9 Transversais
@@ -116,3 +117,4 @@ Receita como alimento: `foods.source_code = 'recipe'`, `source_ref = recipe_id`.
 - Fase 4: `recipes`, `recipe_ingredients`, `recipe_nutrition_cache`, `meal_templates`; `foods.is_active`; fonte `recipe` em `food_sources`. Receita vira `foods` do usuário com medida `portion` (ADR-038).
 - Fase 5: `mesocycles`, `planned_workouts` (agenda materializada ao ativar, ADR-043), `activities`, `daily_checkins` (prontidão persistida), `pain_reports`; `workout_sessions.planned_workout_id`, `adapted`, `adaptation_note`. `training_load_daily` adiada (carga calculada sob demanda, ADR-044).
 - Fase 6: `energy_estimates` (GET adaptativo semanal, ADR-051) e `insights` (dedup por chave, ADR-050), migration 0011 aditiva. `daily_context` e `training_load_daily` continuam calculados sob demanda. Fila do pg-boss no schema `pgboss`, criado pelo próprio pg-boss quando `JOBS_ENABLED=true` (ADR-049).
+- Fase 7: `ai_conversations`, `ai_messages`, `ai_action_proposals` e `weekly_summaries` (migration 0012, aditiva).

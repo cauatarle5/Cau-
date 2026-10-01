@@ -391,7 +391,7 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
 - **Status:** aceita
 - **Contexto:** P10.2 (escrita por proposta), P10.5 (resumo semanal) e P10.6 (limite diário e funcionamento sem chave).
 - **Decisão:**
-  - **Expiração:** proposta pendente expira em 24 h.
+  - **Expiração:** proposta pendente expira em 24 h. `create_recipe` (que aparece só no modelo de dados) fica fora, porque a P10.2 não define ferramenta para ele.
   - **Aplicar** reusa os serviços, com as mesmas validações da interface:
     - refeição registrada ou planejada: `meals.create` com o texto/itens interpretados e os nutrientes do banco;
     - troca de exercício: `updateProgram`, passando pelo validador da P8.7;
