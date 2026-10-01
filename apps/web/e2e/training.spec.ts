@@ -50,6 +50,24 @@ test('DoD Fase 3: treino completo sem rede, sincronizado depois, progresso visí
   await bench.getByRole('button', { name: 'Confirmar série 1' }).click();
 
   // Recarregar sem rede (PWA, ADR-060): a página vem do service worker e o treino do aparelho.
+  // Espera o treino (com o descanso em andamento) estar gravado no IndexedDB.
+  await expect(page.getByRole('timer', { name: 'Descanso' })).toBeVisible();
+  await page.waitForFunction(
+    () =>
+      new Promise<boolean>((resolve) => {
+        const req = indexedDB.open('atlas-offline');
+        req.onsuccess = () => {
+          const all = req.result.transaction('kv').objectStore('kv').getAll();
+          all.onsuccess = () => {
+            resolve(
+              (all.result as { session?: unknown; rest?: unknown }[]).some(
+                (v) => typeof v === 'object' && v.session !== undefined && Boolean(v.rest),
+              ),
+            );
+          };
+        };
+      }),
+  );
   await page.reload();
   await expect(bench.getByLabel('Série 1 concluída')).toContainText('60 kg × 10');
   await expect(page.getByTestId('sync-status')).toContainText('Sem conexão');

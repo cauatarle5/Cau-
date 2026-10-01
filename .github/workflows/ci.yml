@@ -101,7 +101,7 @@ jobs:
         run: docker compose -f deploy/docker-compose.prod.yml --env-file "$RUNNER_TEMP/prod.env" build
       - name: Sobe a stack de produção
         run: docker compose -f deploy/docker-compose.prod.yml --env-file "$RUNNER_TEMP/prod.env" up -d
-      - run: curl -fsSk https://localhost/api/v1/health
+      - run: curl -fsSk --retry 15 --retry-delay 2 --retry-all-errors https://localhost/api/v1/health
       - run: pnpm --filter @atlas/web exec playwright install --with-deps chromium
       - name: Smoke contra a stack
         run: pnpm --filter @atlas/web smoke
