@@ -58,6 +58,7 @@ export interface NutritionDay {
   kcal: number;
   proteinG: number;
   carbsG: number;
+  fatG: number;
   loggedMeals: number;
   dayType: DayType;
   /** Houve musculação ou esporte no dia. */

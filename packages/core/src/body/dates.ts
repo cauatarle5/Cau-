@@ -28,3 +28,16 @@ export function weekStart(date: string): string {
   const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
   return addDays(date, -((dow + 6) % 7));
 }
+
+/** Hora (0–23) e dia da semana (0 = domingo) de um instante no fuso do usuário. */
+export function localClock(instant: Date, timeZone: string): { hour: number; weekday: number } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: 'numeric',
+    hourCycle: 'h23',
+    weekday: 'short',
+  }).formatToParts(instant);
+  const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? 0);
+  const wd = parts.find((p) => p.type === 'weekday')?.value ?? 'Sun';
+  return { hour, weekday: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(wd) };
+}

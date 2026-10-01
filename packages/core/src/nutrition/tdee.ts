@@ -121,3 +121,8 @@ export function tdeeFormula(
     kcal: lifestyleKcal + exerciseKcalPerDay,
   };
 }
+
+/** MET de uma atividade registrada (ADR-048): RPE ≥ 7 conta como intensidade competitiva. */
+export function activityMet(sport: SportCode, intensityRpe: number): number {
+  return sportMet(sport, intensityRpe >= 7 ? 4 : 3);
+}

@@ -51,6 +51,7 @@ const day = (offset: number, over: Partial<NutritionDay> = {}): NutritionDay => 
   kcal: 2200,
   proteinG: 160,
   carbsG: 220,
+  fatG: 70,
   loggedMeals: 3,
   dayType: 'training',
   trained: true,

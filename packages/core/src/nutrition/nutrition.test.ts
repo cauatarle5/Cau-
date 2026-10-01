@@ -5,7 +5,7 @@ import { energyAdjustment, goalEnergyPct } from './goals';
 import { carbsAndFat, fatTarget, fiberTarget, proteinTarget, waterTarget } from './macros';
 import { applySafetyLocks } from './safety';
 import { computeTargets, type TargetsInput } from './targets';
-import { netExerciseKcal, plannedWeeklyExercise, sportMet, tdeeFormula } from './tdee';
+import { activityMet, netExerciseKcal, plannedWeeklyExercise, sportMet, tdeeFormula } from './tdee';
 
 describe('BMR (5.1)', () => {
   it('Mifflin-St Jeor for men and women', () => {
@@ -46,6 +46,10 @@ describe('TDEE (5.2)', () => {
   it('sport MET by intensity', () => {
     expect(sportMet('football', 3)).toBe(7);
     expect(sportMet('futsal', 4)).toBe(10);
+    // Atividade registrada (ADR-048): RPE ≥ 7 = competitivo.
+    expect(activityMet('football', 8)).toBe(10);
+    expect(activityMet('football', 6)).toBe(7);
+    expect(activityMet('running', 9)).toBe(8);
     expect(sportMet('running', 5)).toBe(8);
     expect(sportMet('cycling', 3)).toBe(6.8);
     expect(sportMet('swimming', 3)).toBe(5.8);

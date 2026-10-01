@@ -33,6 +33,7 @@ export async function createTestApp(
       cookieSecure: false,
       authRateLimitMax: 1000,
       trustProxy: 'loopback',
+      jobsEnabled: false,
       anthropicApiKey: undefined,
       aiModelFast: undefined,
       aiRateLimitMax: 1000,

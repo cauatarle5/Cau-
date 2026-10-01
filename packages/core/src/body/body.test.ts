@@ -83,6 +83,20 @@ describe('dates', () => {
     expect(localDate(instant, 'UTC')).toBe('2026-09-30');
   });
 
+  it('localClock gives local hour and weekday (jobs, ADR-049)', async () => {
+    const { localClock } = await import('./dates');
+    // Segunda 07:00 UTC = segunda 04:00 em São Paulo; 02:30 UTC de terça = segunda 23:30.
+    expect(localClock(new Date('2026-09-28T07:00:00Z'), 'America/Sao_Paulo')).toEqual({
+      hour: 4,
+      weekday: 1,
+    });
+    expect(localClock(new Date('2026-09-29T02:30:00Z'), 'America/Sao_Paulo')).toEqual({
+      hour: 23,
+      weekday: 1,
+    });
+    expect(localClock(new Date('2026-09-29T00:00:00Z'), 'UTC')).toEqual({ hour: 0, weekday: 2 });
+  });
+
   it('addDays and dateRange cross month boundaries', async () => {
     const { addDays, dateRange } = await import('./dates');
     expect(addDays('2026-02-27', 2)).toBe('2026-03-01');

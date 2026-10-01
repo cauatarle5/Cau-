@@ -20,6 +20,8 @@ const envSchema = z.object({
   AI_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(30),
   COOKIE_SECURE: booleanString.optional(),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(5),
+  // Worker pg-boss no processo da API (ADR-049); desligado por padrão e nos testes.
+  JOBS_ENABLED: booleanString.optional(),
 });
 
 export interface AppConfig {
@@ -36,6 +38,7 @@ export interface AppConfig {
   anthropicApiKey: string | undefined;
   aiModelFast: string | undefined;
   aiRateLimitMax: number;
+  jobsEnabled: boolean;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -53,5 +56,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     anthropicApiKey: parsed.ANTHROPIC_API_KEY || undefined,
     aiModelFast: parsed.AI_MODEL_FAST || undefined,
     aiRateLimitMax: parsed.AI_RATE_LIMIT_MAX,
+    jobsEnabled: parsed.JOBS_ENABLED ?? false,
   };
 }

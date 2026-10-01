@@ -569,6 +569,20 @@ export function createTrainingRepository(db: Database) {
 
     // Agenda (ADR-043) ---------------------------------------------------
 
+    /** Sessões do intervalo (dia, RPE e duração), para o tipo do dia (ADR-048). */
+    sessionDays(userId: string, from: string, to: string) {
+      return db
+        .select({
+          date: workoutSessions.date,
+          rpe: workoutSessions.sessionRpe,
+          minutes: workoutSessions.durationMin,
+        })
+        .from(workoutSessions)
+        .where(
+          and(liveSession(userId), gte(workoutSessions.date, from), lte(workoutSessions.date, to)),
+        );
+    },
+
     /** Carga sRPE das sessões com RPE e duração (P8.5). */
     async sessionLoads(userId: string, from: string, to: string) {
       const rows = await db

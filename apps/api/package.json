@@ -28,6 +28,7 @@
     "fastify-plugin": "^6.0.0",
     "fastify-type-provider-zod": "^7.0.0",
     "pg": "^8.23.0",
+    "pg-boss": "^12.35.1",
     "uuidv7": "^1.2.1",
     "zod": "^4.6.5"
   },

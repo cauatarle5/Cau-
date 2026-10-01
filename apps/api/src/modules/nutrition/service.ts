@@ -1,4 +1,5 @@
 import {
+  activityMet,
   addDays,
   ageOn,
   computeTargets,
@@ -9,6 +10,7 @@ import {
   planDayType,
   sportMet,
   type DayType,
+  type SportCode,
   type TargetsResult,
   type WeekDayPlan,
 } from '@atlas/core';
@@ -21,10 +23,31 @@ import type { ProfileService } from '../profile/service';
 
 import type { NutritionRepository } from './repository';
 
+/** O que aconteceu ou está agendado num dia (ADR-048). */
+export interface RealDay {
+  gym: boolean;
+  hardGym: boolean;
+  /** Minutos de academia; `null` = usar a disponibilidade do dia (ou 60). */
+  gymMinutes: number | null;
+  activities: { sportCode: SportCode; durationMin: number; intensityRpe: number }[];
+}
+
+export interface RealPlan {
+  /** Semanas (segunda-feira) com treinos agendados: nelas a disponibilidade não conta. */
+  agendaWeeks: Set<string>;
+  days: Map<string, RealDay>;
+}
+
 export interface NutritionServiceDeps {
   profile: ProfileService;
   body: BodyService;
   repo: NutritionRepository;
+  /** Agenda, sessões e atividades do intervalo (ADR-048); sem ela, só a disponibilidade. */
+  realPlan?: (userId: string, from: string, to: string) => Promise<RealPlan>;
+  /** GET adaptativo em uso (confiança média/alta, ADR-051). */
+  adaptiveTdee?: (
+    userId: string,
+  ) => Promise<{ kcal: number; confidence: 'medium' | 'high' } | null>;
 }
 
 /** Segunda-feira da semana (seg–dom) de uma data. */
@@ -55,15 +78,22 @@ function toDayDto(row: NutritionTargetRow): DayTargetsDto {
  * pelo plano semanal, distribuição preservando a média; snapshot persistido e dias
  * passados nunca recalculados.
  */
-export function createNutritionService({ profile, body, repo }: NutritionServiceDeps) {
-  async function base(userId: string, today: string) {
-    const [prof, goal, trend, sports, availability, bodyFat] = await Promise.all([
+export function createNutritionService({
+  profile,
+  body,
+  repo,
+  realPlan,
+  adaptiveTdee,
+}: NutritionServiceDeps) {
+  async function base(userId: string, today: string, opts: { formulaOnly?: boolean } = {}) {
+    const [prof, goal, trend, sports, availability, bodyFat, adaptive] = await Promise.all([
       profile.getProfile(userId),
       profile.currentGoal(userId, today),
       body.latestTrend(userId),
       profile.listSports(userId),
       profile.listAvailability(userId),
       body.latestBodyFat(userId),
+      adaptiveTdee && !opts.formulaOnly ? adaptiveTdee(userId) : null,
     ]);
     if (!prof || !goal || !trend) return { blocked: 'ONBOARDING_INCOMPLETE' as const };
     if (prof.clinicalCondition) return { blocked: 'CLINICAL_CONDITION' as const };
@@ -92,32 +122,69 @@ export function createNutritionService({ profile, body, repo }: NutritionService
         durationMin: s.typicalDurationMin,
         intensity: s.typicalIntensity,
       })),
+      adaptiveTdee: adaptive,
     });
 
-    /** Plano de uma semana (ADR-026), respeitando tipos escolhidos pelo usuário. */
-    const weekPlan = (start: string, overrides: Map<string, DayType>): WeekDayPlan[] =>
+    const availabilityMinutes = (wd: number) =>
+      gym.filter((a) => a.weekday === wd).reduce((acc, a) => acc + a.maxMinutes, 0);
+
+    /**
+     * Plano de uma semana: tipo do dia pelo plano real (ADR-048) quando houver agenda, sessão
+     * ou atividade; senão, pela disponibilidade e pelos esportes fixos (ADR-026). Tipos
+     * escolhidos pelo usuário prevalecem.
+     */
+    const weekPlan = (
+      start: string,
+      overrides: Map<string, DayType>,
+      real: RealPlan | null,
+    ): WeekDayPlan[] =>
       dateRange(start, addDays(start, 6)).map((date) => {
         const wd = weekday(date);
-        const gymMinutes = gym
-          .filter((a) => a.weekday === wd)
-          .reduce((acc, a) => acc + a.maxMinutes, 0);
-        const daySports = sports.filter((s) => s.weekdayHint === wd);
-        const sportMinutes = daySports.reduce((acc, s) => acc + s.typicalDurationMin, 0);
-        const sportKcal = daySports.reduce(
-          (acc, s) =>
-            acc +
-            netExerciseKcal(
-              sportMet(s.sportCode, s.typicalIntensity),
-              trend.trendKg,
-              s.typicalDurationMin,
-            ),
-          0,
-        );
+        const day = real?.days.get(date);
+        const useAgenda = real?.agendaWeeks.has(start) ?? false;
+        const available = availabilityMinutes(wd);
+        const gymDay = (day?.gym ?? false) || (!useAgenda && available > 0);
+        const gymMinutes = !gymDay
+          ? 0
+          : day?.gym
+            ? (day.gymMinutes ?? (available > 0 ? available : 60))
+            : available;
+        // Atividade registrada substitui o esporte fixo do dia.
+        const registered = day?.activities ?? [];
+        const fixed = registered.length > 0 ? [] : sports.filter((s) => s.weekdayHint === wd);
+        const sportMinutes =
+          registered.reduce((acc, a) => acc + a.durationMin, 0) +
+          fixed.reduce((acc, s) => acc + s.typicalDurationMin, 0);
+        const sportKcal =
+          registered.reduce(
+            (acc, a) =>
+              acc +
+              netExerciseKcal(
+                activityMet(a.sportCode, a.intensityRpe),
+                trend.trendKg,
+                a.durationMin,
+              ),
+            0,
+          ) +
+          fixed.reduce(
+            (acc, s) =>
+              acc +
+              netExerciseKcal(
+                sportMet(s.sportCode, s.typicalIntensity),
+                trend.trendKg,
+                s.typicalDurationMin,
+              ),
+            0,
+          );
         return {
           date,
           dayType:
             overrides.get(date) ??
-            planDayType({ gym: gymMinutes > 0, sport: daySports.length > 0 }),
+            planDayType({
+              gym: gymDay,
+              sport: registered.length + fixed.length > 0,
+              hardGym: day?.hardGym ?? false,
+            }),
           sportKcal,
           exerciseMinutes: gymMinutes + sportMinutes,
         };
@@ -152,12 +219,13 @@ export function createNutritionService({ profile, body, repo }: NutritionService
     const overrides = new Map(
       existing.filter((s) => s.dayTypeOverridden).map((s) => [s.date, s.dayType]),
     );
+    const real = realPlan ? await realPlan(userId, firstWeek, addDays(lastWeek, 6)) : null;
 
     const days: DayTargetsDto[] = [];
     for (let ws = firstWeek; ws <= lastWeek; ws = addDays(ws, 7)) {
       const plan = distributeWeek({
         base: b.result.targets,
-        week: b.weekPlan(ws, overrides),
+        week: b.weekPlan(ws, overrides, real),
         weightKg: b.weightKg,
         bmrKcal: b.result.breakdown.bmr.kcal,
         sex: b.sex,
@@ -180,7 +248,7 @@ export function createNutritionService({ profile, body, repo }: NutritionService
           fatG: day.fatG,
           fiberG: day.fiberG,
           waterMl: day.waterMl,
-          method: 'formula' as const,
+          method: b.result.breakdown.adaptive ? ('adaptive' as const) : ('formula' as const),
           inputs: {
             baseTargets: b.result.targets,
             tdeeKcal: b.result.breakdown.tdee.kcal,
@@ -209,6 +277,12 @@ export function createNutritionService({ profile, body, repo }: NutritionService
 
   return {
     targets,
+
+    /** GET por fórmula (base do GET adaptativo); `null` se as metas estão bloqueadas. */
+    async formulaTdee(userId: string, today: string): Promise<number | null> {
+      const b = await base(userId, today, { formulaOnly: true });
+      return b.blocked ? null : b.result.breakdown.tdee.kcal;
+    },
 
     /** Sobrescreve o tipo do dia (P5.8) ou volta ao automático (`null`) e recalcula. */
     async setDayType(userId: string, date: string, dayType: DayType | null, today: string) {

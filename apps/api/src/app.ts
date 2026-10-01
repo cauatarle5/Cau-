@@ -10,47 +10,27 @@ import {
 } from 'fastify-type-provider-zod';
 
 import { createFoodParser, type FoodParser } from '@atlas/ai';
-import { sessionLoad } from '@atlas/core';
 import type { Database } from '@atlas/db';
 
 import type { AppConfig } from './config';
-import { analyticsRoutes, createAnalyticsService } from './modules/analytics';
-import { authRoutes, createAuthRepository, createAuthService } from './modules/auth/index';
-import { bodyRoutes, createBodyRepository, createBodyService } from './modules/body';
-import {
-  createExercisesRepository,
-  createExercisesService,
-  exercisesRoutes,
-} from './modules/exercises';
-import { createFoodsRepository, createFoodsService, foodsRoutes } from './modules/foods';
+import { startJobs } from './jobs/worker';
+import { analyticsRoutes } from './modules/analytics';
+import { authRoutes } from './modules/auth/index';
+import { bodyRoutes } from './modules/body';
+import { exercisesRoutes } from './modules/exercises';
+import { foodsRoutes } from './modules/foods';
 import { healthRoutes } from './modules/health/index';
-import {
-  createMealPlansRepository,
-  createMealPlansService,
-  mealPlansRoutes,
-} from './modules/meal-plans';
-import {
-  createMealsService,
-  createNutritionRepository,
-  createNutritionService,
-  nutritionRoutes,
-} from './modules/nutrition';
-import { createProfileRepository, createProfileService, profileRoutes } from './modules/profile';
-import { createRecipesRepository, createRecipesService, recipesRoutes } from './modules/recipes';
-import {
-  createRecoveryRepository,
-  createRecoveryService,
-  recoveryRoutes,
-} from './modules/recovery';
-import {
-  createAgendaService,
-  createTrainingRepository,
-  createTrainingService,
-  trainingRoutes,
-} from './modules/training';
+import { insightsRoutes } from './modules/insights';
+import { mealPlansRoutes } from './modules/meal-plans';
+import { nutritionRoutes } from './modules/nutrition';
+import { profileRoutes } from './modules/profile';
+import { recipesRoutes } from './modules/recipes';
+import { recoveryRoutes } from './modules/recovery';
+import { trainingRoutes } from './modules/training';
 import { errorsPlugin } from './plugins/errors';
 import { idempotencyPlugin } from './plugins/idempotency';
 import { securityPlugin } from './plugins/security';
+import { createServices } from './services';
 
 export interface BuildAppOptions {
   config: AppConfig;
@@ -96,72 +76,7 @@ export async function buildApp({ config, db, parser }: BuildAppOptions): Promise
     await app.register(swaggerUi, { routePrefix: '/api/docs' });
   }
 
-  const authService = createAuthService(createAuthRepository(db));
-  const bodyService = createBodyService(createBodyRepository(db));
-  const profileService = createProfileService({
-    repo: createProfileRepository(db),
-    hasWeighIn: (userId) => bodyService.hasWeighIn(userId),
-  });
-  const nutritionRepo = createNutritionRepository(db);
-  const nutritionService = createNutritionService({
-    profile: profileService,
-    body: bodyService,
-    repo: nutritionRepo,
-  });
-  const foodsService = createFoodsService(createFoodsRepository(db));
-  const mealsService = createMealsService({
-    repo: nutritionRepo,
-    foods: foodsService,
-    nutrition: nutritionService,
-  });
-  const recipesService = createRecipesService({
-    repo: createRecipesRepository(db),
-    foods: foodsService,
-  });
-  const mealPlansService = createMealPlansService({
-    repo: createMealPlansRepository(db),
-    meals: mealsService,
-    foods: foodsService,
-    recipes: recipesService,
-  });
-  const exercisesService = createExercisesService({
-    repo: createExercisesRepository(db),
-    profile: profileService,
-  });
-  const trainingRepo = createTrainingRepository(db);
-  // Treino ↔ recuperação se usam mutuamente: ligação tardia por função.
-  const recoveryService = createRecoveryService({
-    repo: createRecoveryRepository(db),
-    profile: profileService,
-    sessionLoads: async (userId, from, to) =>
-      (await trainingRepo.sessionLoads(userId, from, to)).map((r) => ({
-        date: r.date,
-        au: sessionLoad(r.rpe, r.minutes),
-      })),
-    assertSession: async (userId, id) => {
-      await trainingService.getSession(userId, id);
-    },
-    assertExercise: async (userId, id) => {
-      await exercisesService.getBundle(userId, id);
-    },
-  });
-  const agendaService = createAgendaService({
-    repo: trainingRepo,
-    exercises: exercisesService,
-    profile: profileService,
-    recovery: () => recoveryService,
-  });
-  const trainingService = createTrainingService({
-    repo: trainingRepo,
-    exercises: exercisesService,
-    agenda: () => agendaService,
-    recovery: () => recoveryService,
-  });
-  const analyticsService = createAnalyticsService({
-    training: trainingService,
-    exercises: exercisesService,
-    profile: profileService,
-  });
+  const svc = createServices(db);
   const foodParser =
     parser ??
     createFoodParser({
@@ -176,30 +91,50 @@ export async function buildApp({ config, db, parser }: BuildAppOptions): Promise
     (v1, _opts, done) => {
       healthRoutes(v1, { db });
       authRoutes(v1, {
-        service: authService,
+        service: svc.auth,
         cookieSecure: config.cookieSecure,
         rateLimitMax: config.authRateLimitMax,
       });
-      profileRoutes(v1, { service: profileService, nutrition: nutritionService });
-      bodyRoutes(v1, { service: bodyService });
-      foodsRoutes(v1, { service: foodsService });
+      profileRoutes(v1, { service: svc.profile, nutrition: svc.nutrition });
+      bodyRoutes(v1, { service: svc.body });
+      foodsRoutes(v1, { service: svc.foods });
       nutritionRoutes(v1, {
-        service: nutritionService,
-        meals: mealsService,
-        foods: foodsService,
+        service: svc.nutrition,
+        meals: svc.meals,
+        foods: svc.foods,
         parser: foodParser,
         aiRateLimitMax: config.aiRateLimitMax,
       });
-      recipesRoutes(v1, { service: recipesService });
-      mealPlansRoutes(v1, { service: mealPlansService, meals: mealsService });
-      exercisesRoutes(v1, { service: exercisesService });
-      trainingRoutes(v1, { service: trainingService, agenda: agendaService });
-      recoveryRoutes(v1, { service: recoveryService });
-      analyticsRoutes(v1, { service: analyticsService });
+      recipesRoutes(v1, { service: svc.recipes });
+      mealPlansRoutes(v1, { service: svc.mealPlans, meals: svc.meals });
+      exercisesRoutes(v1, { service: svc.exercises });
+      trainingRoutes(v1, { service: svc.training, agenda: svc.agenda });
+      recoveryRoutes(v1, { service: svc.recovery });
+      analyticsRoutes(v1, { service: svc.analytics });
+      insightsRoutes(v1, {
+        insights: svc.insights,
+        energy: svc.energy,
+        context: svc.dailyContext,
+      });
       done();
     },
     { prefix: '/api/v1' },
   );
+
+  if (config.jobsEnabled) {
+    let stopJobs: (() => Promise<void>) | null = null;
+    app.addHook('onReady', async () => {
+      stopJobs = await startJobs(config.databaseUrl, {
+        repo: svc.insightsRepo,
+        energy: svc.energy,
+        insights: svc.insights,
+        log: app.log,
+      });
+    });
+    app.addHook('onClose', async () => {
+      await stopJobs?.();
+    });
+  }
 
   return app;
 }
