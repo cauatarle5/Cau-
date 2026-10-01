@@ -38,6 +38,9 @@ test('DoD Fase 3: treino completo sem rede, sincronizado depois, progresso visí
   const bench = page.getByLabel('Supino reto com barra', { exact: true });
   await expect(bench.getByRole('button', { name: 'Confirmar série 1' })).toBeVisible();
 
+  // A página do treino precisa estar guardada pelo service worker antes de a rede cair (ADR-060).
+  await page.waitForFunction(async () => (await caches.match(location.pathname)) !== undefined);
+
   // Sem rede daqui até o fim do treino.
   await context.setOffline(true);
   await expect(page.getByTestId('sync-status')).toContainText('Sem conexão');
