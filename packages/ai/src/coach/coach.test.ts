@@ -1,7 +1,7 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createCoach, type CoachEvent, type CoachTransport } from './coach';
+import { compactHistory, createCoach, type CoachEvent, type CoachTransport } from './coach';
 import { coachToolDefinitions, COACH_TOOLS } from './tools';
 
 type Block = Anthropic.Beta.BetaContentBlock;
@@ -176,5 +176,82 @@ describe('createCoach', () => {
     expect(executeTool).not.toHaveBeenCalled();
     expect(r.stopReason).toBe('refusal');
     expect(events).toContainEqual(expect.objectContaining({ type: 'notice' }));
+  });
+});
+
+describe('createCoach: interrupted turns (Phase 7 review)', () => {
+  it('max_tokens drops dangling tool_use and notices the user', async () => {
+    const { transport } = scripted([
+      message(
+        [text('Vou consultar'), toolUse('x', 'get_insights', { status: null })],
+        'max_tokens',
+      ),
+    ]);
+    const executeTool = vi.fn();
+    const events: CoachEvent[] = [];
+    const coach = createCoach({ transport, model: 'm', executeTool });
+    const r = await coach.reply({
+      history: [],
+      userText: 'oi',
+      context,
+      onEvent: (e) => events.push(e),
+    });
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(r.messages).toEqual([{ role: 'assistant', content: [text('Vou consultar')] }]);
+    expect(events).toContainEqual(expect.objectContaining({ type: 'notice' }));
+  });
+
+  it('empty content is never stored; failures carry the tokens already spent', async () => {
+    const { transport } = scripted([
+      message([toolUse('x', 'get_insights', { status: null })], 'refusal'),
+    ]);
+    const coach = createCoach({ transport, model: 'm', executeTool: vi.fn() });
+    const r = await coach.reply({ history: [], userText: 'oi', context, onEvent: () => undefined });
+    expect(r.messages[0]?.content).toEqual([{ type: 'text', text: '(resposta interrompida)' }]);
+
+    let calls = 0;
+    const failing: CoachTransport = () => {
+      calls += 1;
+      if (calls === 1)
+        return Promise.resolve(
+          message([toolUse('a', 'get_insights', { status: null })], 'tool_use'),
+        );
+      return Promise.reject(new Error('overloaded'));
+    };
+    const c2 = createCoach({
+      transport: failing,
+      model: 'm',
+      executeTool: () => Promise.resolve({}),
+    });
+    await expect(
+      c2.reply({ history: [], userText: 'oi', context, onEvent: () => undefined }),
+    ).rejects.toMatchObject({ name: 'CoachTurnError', usage: { input: 150, output: 20 } });
+  });
+
+  it('past tool results are compacted in the replayed history; prompt cached', async () => {
+    const history = [
+      { role: 'user' as const, content: 'antes' },
+      { role: 'assistant' as const, content: [toolUse('p', 'get_insights', { status: null })] },
+      {
+        role: 'user' as const,
+        content: [{ type: 'tool_result' as const, tool_use_id: 'p', content: '{"big":"data"}' }],
+      },
+      { role: 'assistant' as const, content: [text('ok')] },
+    ];
+    expect(compactHistory(history)[2]?.content).toEqual([
+      expect.objectContaining({
+        tool_use_id: 'p',
+        content: expect.stringContaining('turno anterior') as string,
+      }),
+    ]);
+    const { transport, calls } = scripted([message([text('oi')], 'end_turn')]);
+    await createCoach({ transport, model: 'm', executeTool: vi.fn() }).reply({
+      history: history,
+      userText: 'agora',
+      context,
+      onEvent: () => undefined,
+    });
+    expect(calls[0]?.cache_control).toEqual({ type: 'ephemeral' });
+    expect(JSON.stringify(calls[0]?.messages)).not.toContain('big');
   });
 });

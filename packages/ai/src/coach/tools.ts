@@ -133,7 +133,8 @@ export const COACH_TOOLS = {
 export type CoachToolName = keyof typeof COACH_TOOLS;
 export type CoachToolInput<N extends CoachToolName> = z.output<(typeof COACH_TOOLS)[N]['input']>;
 
-export const isCoachTool = (name: string): name is CoachToolName => name in COACH_TOOLS;
+export const isCoachTool = (name: string): name is CoachToolName =>
+  Object.hasOwn(COACH_TOOLS, name);
 
 /** Definições para a API: esquema gerado do Zod, `strict` (ADR-054). */
 export function coachToolDefinitions(): Anthropic.Beta.BetaTool[] {

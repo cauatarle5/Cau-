@@ -4,13 +4,17 @@ export interface TextNumber {
   value: number;
   /** Casas decimais exibidas (tolerância de arredondamento). */
   decimals: number;
+  /** Unidade logo depois do número, se houver (`%`, `kg`, `g`, `kcal`...). */
+  unit: string | null;
 }
 
 // Data dd/mm ou dd/mm/aaaa (antes dos números para não quebrar em dois).
 const DATE = /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/g;
 // Número pt-BR: sinal opcional; milhar com ponto (grupos de 3) ou dígitos; decimal com vírgula.
 // Ponto seguido de 1–2 dígitos é lido como decimal (texto em inglês).
-const NUMBER = /(?<![\w.,])([−-]?)(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d+)|\.(\d{1,2})(?!\d))?(?![\w])/g;
+// Aceita unidade colada ("80kg", "3,5kg") mas não números dentro de palavras ("B2").
+const NUMBER =
+  /(?<![\w.,])([−-]?)(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d+)|\.(\d{1,2})(?!\d))?(?![\d.,]\d)(?!\d)\s?(%|kcal|kg|g|ml|h|min|ua)?(?![a-zà-ú])/gi;
 
 /** Datas dd/mm(/aaaa) do texto, como `MM-DD` para comparar com datas ISO. */
 export function extractDates(text: string): { raw: string; monthDay: string }[] {
@@ -32,7 +36,9 @@ export function extractNumbers(text: string): TextNumber[] {
     const int = (m[2] ?? '0').replace(/\./g, '');
     const frac = m[3] ?? m[4] ?? '';
     const value = sign * Number(frac ? `${int}.${frac}` : int);
-    return { raw: m[0], value, decimals: frac.length };
+    const unit = m[5]?.toLowerCase() ?? null;
+    const raw = unit ? m[0].slice(0, m[0].length - (m[5]?.length ?? 0)).trimEnd() : m[0];
+    return { raw, value, decimals: frac.length, unit };
   });
 }
 
@@ -62,17 +68,18 @@ export function collectSourceValues(sources: readonly unknown[]): {
 const roundTo = (v: number, d: number) =>
   (Math.sign(v) * Math.round(Math.abs(v) * 10 ** d + 1e-9)) / 10 ** d;
 
-/** O número exibido bate com algum número da fonte, com arredondamento e variações de unidade. */
+/**
+ * O número exibido bate com algum número da fonte, com o arredondamento da exibição. Conversões
+ * só quando a unidade escrita pede: `%` aceita fração × 100; `kg`/`g` aceitam a troca g ↔ kg.
+ * O sinal pode vir no texto ("caiu 4,3 kg").
+ */
 function matches(n: TextNumber, source: number): boolean {
   const target = Math.abs(n.value);
-  // Fonte como está, em % (fração) e com troca g ↔ kg; o sinal pode vir no texto ("caiu 4,3 kg").
-  const candidates = [source, source * 100, source / 1000, source * 1000];
-  return candidates.some((c) => {
-    const r = Math.abs(roundTo(c, n.decimals));
-    if (Math.abs(r - target) < 1e-9) return true;
-    // Texto com menos casas que a fonte: aceita o truncamento usual de exibição (até 1 unidade da última casa).
-    return n.decimals === 0 && Math.abs(Math.abs(c) - target) < 1;
-  });
+  const candidates = [source];
+  if (n.unit === '%') candidates.push(source * 100);
+  if (n.unit === 'kg') candidates.push(source / 1000);
+  if (n.unit === 'g') candidates.push(source * 1000);
+  return candidates.some((c) => Math.abs(Math.abs(roundTo(c, n.decimals)) - target) < 1e-9);
 }
 
 export interface GroundingResult {

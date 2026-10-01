@@ -36,8 +36,8 @@ export function ProposalCard({
       <p className="font-medium">{proposal.summary}</p>
       {proposal.details.length > 0 ? (
         <ul className="list-disc space-y-0.5 pl-5 text-muted-foreground">
-          {proposal.details.map((d) => (
-            <li key={d}>{d}</li>
+          {proposal.details.map((d, i) => (
+            <li key={`${String(i)}-${d}`}>{d}</li>
           ))}
         </ul>
       ) : null}

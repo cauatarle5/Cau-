@@ -15,6 +15,7 @@ export interface CoachEvalResult {
   tools: string[];
   missingTools: string[][];
   ungrounded: string[];
+  toolErrors: string[];
   text: string;
   error: string | null;
   tokens: number;
@@ -72,9 +73,21 @@ export async function runCoachEval(params: {
     const [row] = await params.db
       .select()
       .from(aiMessages)
-      .where(and(eq(aiMessages.conversationId, conv.id), eq(aiMessages.role, 'assistant')));
+      .where(
+        and(
+          eq(aiMessages.userId, userId),
+          eq(aiMessages.conversationId, conv.id),
+          eq(aiMessages.role, 'assistant'),
+        ),
+      );
     const ungrounded = row?.ungrounded ?? [];
     const missingTools = missingToolGroups(c.expectTools, tools);
+    // Erro em ferramenta de leitura reprova (parâmetros errados); em propose_* é resposta das
+    // regras (ex.: nada a adaptar) e conta como uso (ADR-057).
+    const calls = (row?.toolCalls ?? []) as { name: string; isError?: boolean }[];
+    const toolErrors = calls
+      .filter((t) => t.isError === true && !t.name.startsWith('propose_'))
+      .map((t) => t.name);
     results.push({
       id: c.id,
       question: c.question,
@@ -84,7 +97,13 @@ export async function runCoachEval(params: {
       text,
       error,
       tokens: (row?.tokensIn ?? 0) + (row?.tokensOut ?? 0),
-      pass: error === null && text !== '' && missingTools.length === 0 && ungrounded.length === 0,
+      toolErrors,
+      pass:
+        error === null &&
+        text !== '' &&
+        missingTools.length === 0 &&
+        ungrounded.length === 0 &&
+        toolErrors.length === 0,
     });
   }
   return results;

@@ -1,7 +1,7 @@
 # PROGRESS: Atlas
 
 ## Fase atual
-**Fase 6. Integração e motor de insights: concluída.** Próximo: **Fase 7. Coach IA.**
+**Fase 7. Coach IA: implementada; falta rodar a avaliação com o modelo real (DoD) quando houver `ANTHROPIC_API_KEY`.** Próximo: avaliação real e depois **Fase 8. Acabamento e deploy.**
 
 ## Feito
 ### Fase 0. Fundação
@@ -67,11 +67,37 @@
 - **Revisão (checklist 16.3):** 2 problemas altos (treino iniciado em outro dia contado em dobro; GET adaptativo vencido em uso) e 5 médios (chaves de deduplicação semanais, perda rápida com lacunas, treino perdido como dia de treino, cálculos fora do core, robustez do worker) corrigidos com testes (ADR-053); baixos corrigidos (contexto de outro dia, validação do período, base vencida do teto, limpeza de expirados).
 - **DoD:** com o seed demo, Progresso e insights mostram informações corretas e úteis.
 
+### Fase 7. Coach IA
+- **Core:** `groundedNumbers`, que confere cada número de um texto de IA contra as fontes. Lê números em pt-BR, com unidade colada ou separada, datas dd/mm, conversões só quando a unidade escrita pede e o arredondamento do `Intl` (ADR-055/057). 242 testes no core.
+- **DB:** `ai_conversations`, `ai_messages` (blocos do turno, tokens, números não ancorados), `ai_action_proposals` e `weekly_summaries` (migration 0012).
+- **`packages/ai`:**
+  - System prompt (P10.3) e 18 ferramentas da P10.2 com esquema `strict` gerado do Zod.
+  - Laço manual com streaming, ferramentas em paralelo, limite de rodadas, recusa, corte por `max_tokens` sem `tool_use` órfão e tokens contados mesmo em falha.
+  - Cache do prompt e do contexto do dia; histórico com resultados antigos compactados.
+  - Resumo semanal com fallback por modelo de texto.
+  - Transporte roteirizado (`AI_FAKE`) para E2E e harness.
+  - 18 testes.
+- **API (`/ai/*`):**
+  - Conversas persistidas; mensagem com resposta em SSE (eventos text, tool, proposal, notice, done, error).
+  - Propostas com Aplicar/Descartar que passam pelos serviços e validadores: refeição registrada ou planejada, troca de exercício (validador P8.7), adaptação do treino (recalculada pelas regras) e objetivo (travas P5.7). Aplicar acontece uma vez só; propostas expiram em 24 h.
+  - Proteções: 503 sem IA, limite diário de tokens, um turno por vez, limite por minuto, cancelamento ao fechar a aba.
+  - Resumo semanal no job de segunda às 06:00 (ADR-054/056/057). 114 testes de integração.
+- **Web:** tela Coach com conversas, resposta em streaming, status das ferramentas, cartões de proposta, sugestões e aviso de indisponível; cartão "Resumo da semana" no Progresso.
+- **Avaliação (P10.4):**
+  - As 14 perguntas com os grupos de ferramentas esperados (ADR-057) rodam sobre o usuário demo: `pnpm ai:eval:coach` grava um relatório em `apps/api/eval-reports/`.
+  - Sem chave, só o harness roteirizado roda: 14/14, e o CI roda o mesmo harness.
+  - **A avaliação com o modelo real ainda não foi feita:** este ambiente não tem `ANTHROPIC_API_KEY`.
+- **E2E:** pergunta respondida em streaming e proposta de refeição aplicada que aparece na Nutrição (16 testes no total).
+- **Revisão (checklist 16.3):** 2 problemas altos (conversa quebrada após `max_tokens`; brechas na checagem de números) e 6 médios (descartar durante aplicação, tokens de turnos com falha, limite por minuto e turnos paralelos, histórico e cache, desconexão do cliente, critérios da avaliação) corrigidos com testes (ADR-057). Os baixos também foram corrigidos: início do dia em UTC+14, nomes de ferramenta herdados do protótipo, números das travas, robustez do SSE no web, estado e acessibilidade do chat.
+- **Correção extra:** desempate determinístico nas alternativas de exercício (o E2E de substituição falhava de forma intermitente).
+- **DoD:** pendente a avaliação real. Com chave, rode `ANTHROPIC_API_KEY=... AI_MODEL_CHAT=claude-sonnet-5-5 pnpm ai:eval:coach` (custa tokens) e a meta é 14/14.
+
 ## Pendente (para fases seguintes)
-- Resumo semanal redigido pelo LLM (10.5) e Coach: Fase 7.
-- Plano semanal e lista de compras (Parte 15); IA redigindo sugestões: Fase 7 (números sempre do solver).
+- **DoD da Fase 7:** avaliação do Coach com o modelo real (precisa de `ANTHROPIC_API_KEY` nos segredos do ambiente).
+- Plano semanal e lista de compras (Parte 15): futuro.
 - Leite fluido e itens ausentes na TACO; fallback USDA bloqueado pela rede deste ambiente (OPEN_QUESTIONS).
-- Avaliação do parser com 100 frases e da IA real: Fase 7 (sem `ANTHROPIC_API_KEY` neste ambiente, só as regras foram avaliadas).
+- Avaliação do parser com 100 frases e da IA real: junto com a avaliação do Coach, quando houver chave.
+- Uma proposta cuja conclusão falhe depois de aplicada fica travada como pendente; não é reaplicada (OPEN_QUESTIONS).
 - `training_load_daily` e `daily_context` materializados: adiados, calculados sob demanda (ADR-044/049).
 - Reversão local de operação offline recusada (OPEN_QUESTIONS).
 - Treino offline com recarga de página: PWA, Fase 8.
@@ -93,4 +119,5 @@
 - Jobs: `JOBS_ENABLED=true` liga o worker pg-boss (cria o schema `pgboss` no banco).
 
 ## Próximo passo
-- `/fase 7`: Coach IA (ferramentas sobre o core e os insights, system prompt, conversas persistidas, streaming, propostas aceitar/rejeitar, resumo semanal e avaliação das 14 perguntas com o usuário demo), conforme `docs/ROADMAP.md`.
+- Com `ANTHROPIC_API_KEY`: `pnpm db:seed:demo` e depois `AI_MODEL_CHAT=claude-sonnet-5-5 pnpm ai:eval:coach`. Analisar o relatório; se não der 14/14, ajustar o prompt ou as ferramentas.
+- Depois, `/fase 8`: acabamento e deploy (PWA, desempenho, acessibilidade, exportação e exclusão de conta, deploy com backup), conforme `docs/ROADMAP.md`.

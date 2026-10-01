@@ -57,6 +57,7 @@ export async function streamMessage(
   }
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
   let buffer = '';
+  let finished = false;
   for (;;) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -67,10 +68,26 @@ export async function streamMessage(
       buffer = buffer.slice(end + 2);
       const data = chunk.split('\n').find((l) => l.startsWith('data: '));
       if (data) {
-        const parsed = chatEventSchema.safeParse(JSON.parse(data.slice(6)));
-        if (parsed.success) onEvent(parsed.data);
+        let json: unknown = null;
+        try {
+          json = JSON.parse(data.slice(6));
+        } catch {
+          // quadro inválido: ignora
+        }
+        const parsed = chatEventSchema.safeParse(json);
+        if (parsed.success) {
+          if (parsed.data.type === 'done' || parsed.data.type === 'error') finished = true;
+          onEvent(parsed.data);
+        }
       }
       end = buffer.indexOf('\n\n');
     }
   }
+  // Conexão caiu sem resposta final.
+  if (!finished)
+    onEvent({
+      type: 'error',
+      code: 'AI_ERROR',
+      message: 'A conexão caiu antes da resposta terminar.',
+    });
 }

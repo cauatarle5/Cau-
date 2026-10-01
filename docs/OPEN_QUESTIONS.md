@@ -12,3 +12,4 @@ Dúvidas que **não bloqueiam** a fase atual (PROMPT_MESTRE 0.2). Cada item: con
 - **Recarregar a página sem rede:** exige service worker (PWA, Fase 8). Hoje o treino funciona offline com o app aberto e sobrevive a fechar/reabrir com rede.
 - **Cópia de dia não é transacional entre slots:** se um slot falhar, os anteriores ficam gravados; o reenvio com a mesma `Idempotency-Key` devolve a resposta original. Resolver se aparecer na prática.
 - **`eaten_at` ao registrar refeição de outro dia:** usa o horário atual; o dia continua sendo o da refeição. Revisitar com o registro retroativo.
+- **Proposta travada:** se aplicar der certo mas a conclusão no banco falhar, a proposta fica pendente com trava e não pode ser reaplicada (evita duplicar). Hoje isso exige ajuste manual; um job de reconciliação pode entrar na Fase 8.

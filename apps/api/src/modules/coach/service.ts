@@ -1,7 +1,13 @@
 import type Anthropic from '@anthropic-ai/sdk';
 
-import { createCoach, writeWeeklySummary, type CoachTransport, type FoodParser } from '@atlas/ai';
-import { addDays, groundedNumbers, localDate, weekStart } from '@atlas/core';
+import {
+  CoachTurnError,
+  createCoach,
+  writeWeeklySummary,
+  type CoachTransport,
+  type FoodParser,
+} from '@atlas/ai';
+import { addDays, groundedNumbers, localDate, MIN_KCAL, weekStart } from '@atlas/core';
 import type { AiMessageRow } from '@atlas/db';
 import type { ChatEvent, ChatMessageDto, ConversationDto } from '@atlas/schemas';
 
@@ -19,7 +25,12 @@ export interface PreparedTurn {
   conversation: { id: string };
   transport: CoachTransport;
   model: string;
+  /** Libera a vaga de turno do usuário (um turno por vez). */
+  release: () => void;
 }
+
+/** Números das travas citados no system prompt (P5.7): contam como fonte (ADR-055). */
+const RULE_NUMBERS = { minKcal: MIN_KCAL, maxDeficitPct: 25 };
 
 export interface CoachConfig {
   /** `null` = IA indisponível (sem chave/modelo): chat responde 503 (ADR-056). */
@@ -44,7 +55,8 @@ const toConversationDto = (r: {
 function startOfLocalDay(now: Date, timeZone: string): Date {
   const today = localDate(now, timeZone);
   // Busca o primeiro instante (de hora em hora) cujo dia local já é hoje.
-  let t = new Date(`${addDays(today, -1)}T12:00:00Z`).getTime();
+  // Começa na meia-noite UTC da véspera: cobre fusos até UTC+14.
+  let t = new Date(`${addDays(today, -1)}T00:00:00Z`).getTime();
   while (localDate(new Date(t), timeZone) !== today) t += 15 * 60_000;
   return new Date(t);
 }
@@ -57,6 +69,8 @@ export function createCoachService(deps: {
 }) {
   const { repo, svc, config } = deps;
   const proposals = createProposalsService({ repo, svc, parser: deps.parser });
+  // Um turno por usuário por vez (processo único): pedidos paralelos não furam o limite diário.
+  const activeTurns = new Set<string>();
 
   async function toMessages(rows: AiMessageRow[], userId: string): Promise<ChatMessageDto[]> {
     const ids = rows.flatMap((r) =>
@@ -79,6 +93,109 @@ export function createCoachService(deps: {
         createdAt: r.createdAt.toISOString(),
       };
     });
+  }
+
+  async function sendTurn(
+    ctx: Ctx,
+    prepared: PreparedTurn,
+    text: string,
+    emit: (e: ChatEvent) => void,
+    signal?: AbortSignal,
+  ) {
+    const { conversation, transport, model } = prepared;
+    const rows = await repo.listMessages(ctx.userId, conversation.id);
+    const history = rows.flatMap((r) => r.content as MessageParam[]);
+    await repo.insertMessage(ctx.userId, {
+      conversationId: conversation.id,
+      role: 'user',
+      text,
+      content: [{ role: 'user', content: text }],
+    });
+
+    const proposalIds: string[] = [];
+    const executeTool = createCoachToolExecutor({
+      svc,
+      proposals,
+      ctx,
+      conversationId: conversation.id,
+      onProposal: (id) => proposalIds.push(id),
+    });
+    const [profile, dailyContext] = await Promise.all([
+      executeTool('get_profile_summary', {}),
+      executeTool('get_daily_context', { date: ctx.today }),
+    ]);
+    const coach = createCoach({
+      transport,
+      model,
+      executeTool: async (name, input) => {
+        const before = proposalIds.length;
+        const result = await executeTool(name, input);
+        for (const pid of proposalIds.slice(before)) {
+          const [p] = await repo.proposalsByIds(ctx.userId, [pid]);
+          if (p) emit({ type: 'proposal', proposal: toProposalDto(p) });
+        }
+        return result;
+      },
+    });
+
+    try {
+      const turn = await coach.reply({
+        history,
+        userText: text,
+        context: { today: ctx.today, profile, dailyContext },
+        ...(signal ? { signal } : {}),
+        onEvent: (e) => {
+          if (e.type === 'tool')
+            emit({
+              type: 'tool',
+              name: e.name,
+              label: Object.hasOwn(TOOL_LABELS, e.name)
+                ? TOOL_LABELS[e.name as keyof typeof TOOL_LABELS]
+                : 'Consultando',
+            });
+          else emit(e);
+        },
+      });
+      const grounding = groundedNumbers(
+        turn.text,
+        [RULE_NUMBERS, profile, dailyContext, ...turn.toolCalls.map((c) => c.result)],
+        { ignoreText: text },
+      );
+      // A pergunta já foi gravada; a resposta guarda o turno inteiro (só acrescentado).
+      const toolCalls = turn.toolCalls.map((c) => ({ name: c.name, isError: c.isError }));
+      const assistant = await repo.insertMessage(ctx.userId, {
+        conversationId: conversation.id,
+        role: 'assistant',
+        text: turn.text,
+        content: turn.messages,
+        toolCalls: [...toolCalls, { name: '_proposals', proposalIds }],
+        ungrounded: grounding.ungrounded,
+        tokensIn: turn.usage.input,
+        tokensOut: turn.usage.output,
+        model,
+      });
+      await repo.touchConversation(
+        ctx.userId,
+        conversation.id,
+        rows.length === 0 ? text.slice(0, 60) : undefined,
+      );
+      const [dto] = await toMessages([assistant], ctx.userId);
+      if (dto) emit({ type: 'done', message: { ...dto, toolCalls: toolCalls.map((c) => c.name) } });
+    } catch (err) {
+      // Sem resposta: grava um aviso do assistente (histórico continua alternado e válido) com os
+      // tokens já gastos, que contam no limite diário.
+      const usage = err instanceof CoachTurnError ? err.usage : { input: 0, output: 0 };
+      await repo.insertMessage(ctx.userId, {
+        conversationId: conversation.id,
+        role: 'assistant',
+        text: 'Não consegui responder agora.',
+        content: [{ role: 'assistant', content: [{ type: 'text', text: '(falha ao responder)' }] }],
+        tokensIn: usage.input,
+        tokensOut: usage.output,
+        model,
+      });
+      throw err instanceof CoachTurnError ? err.original : err;
+    }
   }
 
   async function tokensToday(ctx: Ctx) {
@@ -132,98 +249,39 @@ export function createCoachService(deps: {
           'Limite diário do Coach',
           'Você atingiu o limite de uso do Coach por hoje. Volte amanhã.',
         );
-      return { conversation, transport: config.transport, model: config.model };
+      if (activeTurns.has(ctx.userId))
+        throw new AppError(
+          429,
+          'RATE_LIMITED',
+          'Resposta em andamento',
+          'Aguarde o Coach terminar a resposta anterior.',
+        );
+      activeTurns.add(ctx.userId);
+      return {
+        conversation,
+        transport: config.transport,
+        model: config.model,
+        release: () => {
+          activeTurns.delete(ctx.userId);
+        },
+      };
     },
 
     /**
      * Responde a uma mensagem com streaming (ADR-054): grava a pergunta, roda o Coach com as
      * ferramentas do usuário, grava a resposta (tokens, números não ancorados) e emite eventos.
      */
-    async send(ctx: Ctx, prepared: PreparedTurn, text: string, emit: (e: ChatEvent) => void) {
-      const { conversation, transport, model } = prepared;
-      const rows = await repo.listMessages(ctx.userId, conversation.id);
-      const history = rows.flatMap((r) => r.content as MessageParam[]);
-      const userRow = await repo.insertMessage(ctx.userId, {
-        conversationId: conversation.id,
-        role: 'user',
-        text,
-        content: [{ role: 'user', content: text }],
-      });
-
-      const proposalIds: string[] = [];
-      const executeTool = createCoachToolExecutor({
-        svc,
-        proposals,
-        ctx,
-        conversationId: conversation.id,
-        onProposal: (id) => proposalIds.push(id),
-      });
-      const [profile, dailyContext] = await Promise.all([
-        executeTool('get_profile_summary', {}),
-        executeTool('get_daily_context', { date: ctx.today }),
-      ]);
-      const coach = createCoach({
-        transport,
-        model,
-        executeTool: async (name, input) => {
-          const before = proposalIds.length;
-          const result = await executeTool(name, input);
-          for (const pid of proposalIds.slice(before)) {
-            const [p] = await repo.proposalsByIds(ctx.userId, [pid]);
-            if (p) emit({ type: 'proposal', proposal: toProposalDto(p) });
-          }
-          return result;
-        },
-      });
-
+    async send(
+      ctx: Ctx,
+      prepared: PreparedTurn,
+      text: string,
+      emit: (e: ChatEvent) => void,
+      signal?: AbortSignal,
+    ) {
       try {
-        const turn = await coach.reply({
-          history,
-          userText: text,
-          context: { today: ctx.today, profile, dailyContext },
-          onEvent: (e) => {
-            if (e.type === 'tool')
-              emit({
-                type: 'tool',
-                name: e.name,
-                label:
-                  e.name in TOOL_LABELS
-                    ? TOOL_LABELS[e.name as keyof typeof TOOL_LABELS]
-                    : 'Consultando',
-              });
-            else emit(e);
-          },
-        });
-        const grounding = groundedNumbers(
-          turn.text,
-          [profile, dailyContext, ...turn.toolCalls.map((c) => c.result)],
-          { ignoreText: text },
-        );
-        // A pergunta já foi gravada; a resposta guarda o turno inteiro (só acrescentado).
-        const toolCalls = turn.toolCalls.map((c) => ({ name: c.name, isError: c.isError }));
-        const assistant = await repo.insertMessage(ctx.userId, {
-          conversationId: conversation.id,
-          role: 'assistant',
-          text: turn.text,
-          content: turn.messages,
-          toolCalls: [...toolCalls, { name: '_proposals', proposalIds }],
-          ungrounded: grounding.ungrounded,
-          tokensIn: turn.usage.input,
-          tokensOut: turn.usage.output,
-          model,
-        });
-        await repo.touchConversation(
-          ctx.userId,
-          conversation.id,
-          rows.length === 0 ? text.slice(0, 60) : undefined,
-        );
-        const [dto] = await toMessages([assistant], ctx.userId);
-        if (dto)
-          emit({ type: 'done', message: { ...dto, toolCalls: toolCalls.map((c) => c.name) } });
-      } catch (err) {
-        // Sem resposta: remove a pergunta para o histórico continuar válido (usuário/assistente).
-        await repo.deleteMessage(ctx.userId, userRow.id);
-        throw err;
+        await sendTurn(ctx, prepared, text, emit, signal);
+      } finally {
+        prepared.release();
       }
     },
 

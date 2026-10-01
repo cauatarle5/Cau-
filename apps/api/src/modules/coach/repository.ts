@@ -71,11 +71,6 @@ export function createCoachRepository(db: Database) {
       return row;
     },
 
-    /** Só para desfazer a pergunta quando o turno falha (o histórico enviado fica consistente). */
-    async deleteMessage(userId: string, id: string) {
-      await db.delete(aiMessages).where(and(eq(aiMessages.userId, userId), eq(aiMessages.id, id)));
-    },
-
     /** Tokens (entrada + saída) gastos pelo usuário desde `since` (limite diário, ADR-056). */
     async tokensSince(userId: string, since: Date): Promise<number> {
       const [row] = await db
@@ -98,7 +93,7 @@ export function createCoachRepository(db: Database) {
       return row;
     },
 
-    /** Marca como expiradas as pendentes vencidas do usuário. */
+    /** Marca como expiradas as pendentes vencidas do usuário (nunca uma sendo aplicada). */
     async expireProposals(userId: string, now: Date) {
       await db
         .update(aiActionProposals)
@@ -107,6 +102,7 @@ export function createCoachRepository(db: Database) {
           and(
             eq(aiActionProposals.userId, userId),
             eq(aiActionProposals.status, 'pending'),
+            sql`${aiActionProposals.resolvedAt} is null`,
             lt(aiActionProposals.expiresAt, now),
           ),
         );
@@ -142,7 +138,10 @@ export function createCoachRepository(db: Database) {
       return row;
     },
 
-    /** Resolve só se ainda pendente (condicional: aplicar duas vezes não duplica). */
+    /**
+     * Resolve só se ainda pendente. Descartar exige que ninguém esteja aplicando (`resolvedAt`
+     * nulo); concluir a aplicação exige a trava de `claimProposal`.
+     */
     async resolveProposal(
       userId: string,
       id: string,
@@ -157,6 +156,9 @@ export function createCoachRepository(db: Database) {
             eq(aiActionProposals.userId, userId),
             eq(aiActionProposals.id, id),
             eq(aiActionProposals.status, 'pending'),
+            status === 'accepted'
+              ? sql`${aiActionProposals.resolvedAt} is not null`
+              : sql`${aiActionProposals.resolvedAt} is null`,
           ),
         )
         .returning();

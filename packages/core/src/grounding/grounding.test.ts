@@ -5,9 +5,17 @@ import { collectSourceValues, extractDates, extractNumbers, groundedNumbers } fr
 describe('extractNumbers (pt-BR)', () => {
   it('thousands, decimals, signs and units', () => {
     expect(extractNumbers('Média de 1.234,5 kcal e −0,43% por semana; 12 séries.')).toEqual([
-      { raw: '1.234,5', value: 1234.5, decimals: 1 },
-      { raw: '−0,43', value: -0.43, decimals: 2 },
-      { raw: '12', value: 12, decimals: 0 },
+      { raw: '1.234,5', value: 1234.5, decimals: 1, unit: 'kcal' },
+      { raw: '−0,43', value: -0.43, decimals: 2, unit: '%' },
+      { raw: '12', value: 12, decimals: 0, unit: null },
+    ]);
+    // Unidade colada ao número.
+    expect(
+      extractNumbers('pesou 80kg, comeu 2300kcal e perdeu 3,5kg').map((n) => [n.value, n.unit]),
+    ).toEqual([
+      [80, 'kg'],
+      [2300, 'kcal'],
+      [3.5, 'kg'],
     ]);
     expect(extractNumbers('faixa 6–10 reps, 80 kg').map((n) => n.value)).toEqual([6, 10, 80]);
     expect(extractNumbers('versão 2.5 do app').map((n) => n.value)).toEqual([2.5]);
@@ -38,6 +46,20 @@ describe('groundedNumbers (ADR-055)', () => {
       [tool],
     );
     expect(r).toEqual({ ok: true, ungrounded: [], checked: 7 });
+  });
+
+  it('unit conversions only when the written unit asks for them', () => {
+    // 70 kg não é 0,07 × 1000; 7% é 0,07 × 100.
+    expect(groundedNumbers('Você pesa 70 kg.', [{ changePct: 0.07 }]).ok).toBe(false);
+    expect(groundedNumbers('Subiu 7% no período.', [{ changePct: 0.07 }]).ok).toBe(true);
+    expect(groundedNumbers('Comeu 164 g de proteína', [{ proteinKg: 0.164 }]).ok).toBe(true);
+    // Colado e inventado: sinalizado.
+    expect(groundedNumbers('Você pesa 80kg e perdeu 3,5kg', [{ weightKg: 80 }]).ungrounded).toEqual(
+      ['3,5'],
+    );
+    // Sem truncamento: 79,6 kg não vira "80" nem "79" por proximidade, só por arredondamento.
+    expect(groundedNumbers('Tendência de 80 kg', [{ trendKg: 79.6 }]).ok).toBe(true);
+    expect(groundedNumbers('Tendência de 79 kg', [{ trendKg: 79.6 }]).ok).toBe(false);
   });
 
   it('negative halves round away from zero, like Intl', () => {

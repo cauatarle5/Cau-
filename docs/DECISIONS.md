@@ -405,3 +405,30 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
   - **Limite:** tokens registrados por mensagem. O limite diário por usuário vem de `AI_DAILY_TOKEN_LIMIT` (padrão 200 mil); estourou, `429 AI_DAILY_LIMIT`.
   - **Sem chave/modelo:** `503 AI_UNAVAILABLE` no chat. A tela avisa e o resto do sistema funciona.
   - **E2E:** `AI_FAKE=true` liga um cliente roteirizado, recusado com `NODE_ENV=production`.
+
+## ADR-057: Correções da revisão da Fase 7
+- **Status:** aceita (complementa ADR-054 a ADR-056)
+- **Contexto:** a revisão 16.3 achou dois problemas altos: conversa quebrada após corte por `max_tokens` e brechas na checagem de números. Também apontou problemas médios em concorrência, tokens, custo, cancelamento e critérios da avaliação.
+- **Decisão:**
+  - **Turno interrompido:**
+    - Um `tool_use` que não foi executado (corte por `max_tokens` ou recusa) nunca é gravado. Conteúdo vazio vira "(resposta interrompida)", e o usuário recebe um aviso.
+    - Turno que falha grava um aviso do assistente com os tokens já gastos. Esses tokens contam no limite diário, e o histórico continua alternado.
+  - **Números ancorados:**
+    - Unidade colada ao número é reconhecida ("80kg", "3,5kg").
+    - Conversões só valem quando a unidade escrita pede: `%` aceita fração × 100, e `g`/`kg` aceitam a troca g ↔ kg. Não há mais tolerância de ±1.
+    - O arredondamento segue o `Intl` (meio para longe do zero).
+    - Os números das travas do system prompt (1500/1200 kcal, 25%) contam como fonte.
+  - **Propostas:**
+    - Descartar ou expirar exige que ninguém esteja aplicando.
+    - Depois que a ação foi aplicada, a trava não é liberada, mesmo que a conclusão falhe (nada é aplicado duas vezes).
+  - **Custo e abuso:**
+    - Um turno por usuário por vez (429 `RATE_LIMITED`).
+    - Mesmo limite por minuto dos outros endpoints de IA.
+    - Cache automático do histórico, com breakpoints no prompt fixo e no contexto do dia.
+    - Resultados de ferramentas de turnos passados são compactados no reenvio.
+  - **SSE:** fechar a aba cancela a chamada ao modelo, e um comentário a cada 15 s mantém a conexão viva.
+  - **Avaliação (P10.4):**
+    - "Qual músculo está ficando para trás?" exige volume e progresso de exercício.
+    - "Dormi mal" exige o contexto/plano do dia e a proposta de adaptação.
+    - `get_daily_context` não é exigido em "o que comer" porque já vai no contexto injetado.
+    - Erro em ferramenta de leitura reprova. Erro em `propose_*` é resposta das regras e conta como uso.

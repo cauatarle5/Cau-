@@ -1,6 +1,7 @@
 /**
- * As 14 perguntas da P10.4 com as ferramentas esperadas. Cada grupo é "pelo menos uma destas";
- * todos os grupos precisam ser atendidos.
+ * As 14 perguntas da P10.4 com as ferramentas esperadas (ADR-057). Cada grupo é "pelo menos uma
+ * destas"; todos os grupos precisam ser atendidos. O DailyContext de hoje já vai no contexto
+ * injetado (P10.3), então `get_daily_context` só é exigido onde a P10.4 pede outro dado do dia.
  */
 export interface CoachEvalCase {
   id: string;
@@ -44,7 +45,7 @@ export const COACH_EVAL_CASES: CoachEvalCase[] = [
   {
     id: 'dormi-mal',
     question: 'Como adaptar meu treino porque dormi mal?',
-    expectTools: [['propose_workout_adaptation', 'get_daily_context', 'get_today_plan']],
+    expectTools: [['get_daily_context', 'get_today_plan'], ['propose_workout_adaptation']],
   },
   {
     id: 'completar-macros',

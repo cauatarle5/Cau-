@@ -154,7 +154,7 @@ export async function buildApp({
         energy: svc.energy,
         context: svc.dailyContext,
       });
-      coachRoutes(v1, { service: coach });
+      coachRoutes(v1, { service: coach, aiRateLimitMax: config.aiRateLimitMax });
       done();
     },
     { prefix: '/api/v1' },

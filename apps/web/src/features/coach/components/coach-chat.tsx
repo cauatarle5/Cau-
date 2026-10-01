@@ -95,7 +95,9 @@ export function CoachChat() {
         setCurrentId(id);
       }
       setStreaming({ question: q, text: '', tool: null, proposals: [], notice: null });
+      const outcome: { failed: string | null } = { failed: null };
       await streamMessage(id, q, (e) => {
+        if (e.type === 'error') outcome.failed = e.message;
         setStreaming((s) => {
           if (!s) return s;
           switch (e.type) {
@@ -108,13 +110,16 @@ export function CoachChat() {
             case 'notice':
               return { ...s, notice: e.message };
             case 'error':
-              setError(e.message);
               return s;
             case 'done':
               return s;
           }
         });
       });
+      if (outcome.failed !== null) {
+        setError(outcome.failed);
+        setText(q);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Não foi possível falar com o Coach.');
       setText(q);
@@ -155,6 +160,7 @@ export function CoachChat() {
               id="conversation"
               className="min-h-11 w-full rounded-lg border border-border bg-card px-3 text-sm"
               value={currentId ?? ''}
+              disabled={streaming !== null}
               onChange={(e) => {
                 setCurrentId(e.target.value || null);
               }}
@@ -179,7 +185,7 @@ export function CoachChat() {
         </Button>
       </div>
 
-      <ol aria-label="Mensagens" aria-live="polite" className="flex flex-col gap-3">
+      <ol aria-label="Mensagens" className="flex flex-col gap-3">
         {messages.map((m) => (
           <Message key={m.id} m={m} />
         ))}
@@ -208,6 +214,9 @@ export function CoachChat() {
         ) : null}
       </ol>
       <div ref={endRef} />
+      <p role="status" className="sr-only">
+        {streaming ? 'O Coach está respondendo' : ''}
+      </p>
 
       {empty && available ? (
         <ul aria-label="Sugestões" className="flex flex-wrap gap-2">

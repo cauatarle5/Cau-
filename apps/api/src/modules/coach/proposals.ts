@@ -197,7 +197,7 @@ export function createProposalsService(deps: {
         {
           plannedWorkoutId: planned.id,
           reason: input.reason,
-          details: [...a.explanation, ...changes],
+          details: [...a.explanation, ...changes, 'O plano é recalculado pelas regras ao aplicar.'],
           link: '/hoje',
         },
       );
@@ -295,48 +295,47 @@ export function createProposalsService(deps: {
         );
       }
       const p = claimed.payload as Payload;
+      let result: unknown;
       try {
-        let result: unknown;
-        switch (claimed.actionType) {
-          case 'log_meal':
-          case 'plan_meal': {
-            const meal = mealCreateSchema.parse(p.meal);
-            result = { mealId: (await svc.meals.create(ctx.userId, meal)).id };
-            break;
-          }
-          case 'adapt_workout': {
-            const dto = await svc.agenda.applyAdaptation(ctx, String(p.plannedWorkoutId));
-            result = { plannedWorkoutId: dto.plannedWorkout.id, mode: dto.mode };
-            break;
-          }
-          case 'swap_exercise': {
-            const program = await activeProgram(ctx);
-            if (program.id !== p.programId)
-              throw validationError([{ field: 'programId', message: 'O programa ativo mudou' }]);
-            const updated = await svc.training.updateProgram(ctx, program.id, {
-              templates: swappedTemplates(program, String(p.fromId), String(p.toId)).map((t) => ({
-                ...t,
-                exercises: t.exercises.map((e) => ({ ...e })),
-              })),
-            });
-            result = { programId: updated.id, warnings: updated.warnings.length };
-            break;
-          }
-          case 'update_goal': {
-            const goal = goalInputSchema.parse(p.goal);
-            result = { goalId: (await svc.profile.createGoal(ctx.userId, goal, ctx.today)).id };
-            break;
-          }
-        }
-        const row = await repo.resolveProposal(ctx.userId, id, 'accepted', result);
-        if (!row) throw new Error('proposal changed while applying');
-        return toProposalDto(row);
+        result = await apply(ctx, claimed.actionType, p);
       } catch (err) {
+        // Nada foi aplicado: a proposta volta a pendente.
         await repo.releaseProposal(ctx.userId, id);
         throw err;
       }
+      // Já aplicado: não libera a trava (evita aplicar de novo); só conclui.
+      const row = await repo.resolveProposal(ctx.userId, id, 'accepted', result);
+      if (!row) throw new Error('proposal changed while applying');
+      return toProposalDto(row);
     },
   };
+
+  async function apply(ctx: Ctx, actionType: AiActionProposalRow['actionType'], p: Payload) {
+    switch (actionType) {
+      case 'log_meal':
+      case 'plan_meal': {
+        const meal = mealCreateSchema.parse(p.meal);
+        return { mealId: (await svc.meals.create(ctx.userId, meal)).id };
+      }
+      case 'adapt_workout': {
+        const dto = await svc.agenda.applyAdaptation(ctx, String(p.plannedWorkoutId));
+        return { plannedWorkoutId: dto.plannedWorkout.id, mode: dto.mode };
+      }
+      case 'swap_exercise': {
+        const program = await activeProgram(ctx);
+        if (program.id !== p.programId)
+          throw validationError([{ field: 'programId', message: 'O programa ativo mudou' }]);
+        const updated = await svc.training.updateProgram(ctx, program.id, {
+          templates: swappedTemplates(program, String(p.fromId), String(p.toId)),
+        });
+        return { programId: updated.id, warnings: updated.warnings.length };
+      }
+      case 'update_goal': {
+        const goal = goalInputSchema.parse(p.goal);
+        return { goalId: (await svc.profile.createGoal(ctx.userId, goal, ctx.today)).id };
+      }
+    }
+  }
 }
 
 export type ProposalsService = ReturnType<typeof createProposalsService>;

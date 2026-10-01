@@ -407,3 +407,96 @@ describe('coach proposals for goal, swap and workout adaptation', () => {
     expect(['ai', 'template']).toContain(refresh.json<{ source: string }>().source);
   });
 });
+
+describe('coach review fixes (ADR-057)', () => {
+  let impl: CoachTransport = () => Promise.reject(new Error('unset'));
+  let ctx: TestContext;
+  beforeAll(async () => {
+    ctx = await createTestApp({ aiModelChat: 'test' }, undefined, {
+      coachTransport: (p, onText, signal) => impl(p, onText, signal),
+    });
+  });
+  afterAll(() => ctx.close());
+
+  it('one turn per user at a time', async () => {
+    const u = await onboardedUser(ctx.app, today);
+    const id = await newConversation(u.call);
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    impl = async (_p, onText) => {
+      await gate;
+      onText('ok');
+      return message([{ type: 'text', text: 'ok' }], 'end_turn');
+    };
+    const first = send(u.call, id, 'primeira');
+    await new Promise((r) => setTimeout(r, 200));
+    const second = await send(u.call, id, 'segunda');
+    expect(second.statusCode).toBe(429);
+    expect(second.json<{ code: string }>().code).toBe('RATE_LIMITED');
+    release();
+    expect((await first).statusCode).toBe(200);
+    // Liberado depois do turno.
+    expect((await send(u.call, id, 'terceira')).statusCode).toBe(200);
+  });
+
+  it('a failed turn records the spent tokens and keeps the history valid', async () => {
+    const u = await onboardedUser(ctx.app, today);
+    const id = await newConversation(u.call);
+    let calls = 0;
+    impl = (params, onText) => {
+      calls += 1;
+      if (calls === 1)
+        return Promise.resolve(
+          message(
+            [{ type: 'tool_use', id: 't0', name: 'get_insights', input: { status: null } }],
+            'tool_use',
+          ),
+        );
+      if (calls === 2) return Promise.reject(new Error('overloaded'));
+      // Turno seguinte: o histórico precisa alternar usuário/assistente.
+      const roles = params.messages.map((m) => m.role);
+      const alternates = roles.every((r, i) => i === 0 || r !== roles[i - 1]);
+      const t = alternates ? 'alterna' : 'quebrado';
+      onText(t);
+      return Promise.resolve(message([{ type: 'text', text: t }], 'end_turn'));
+    };
+    const failed = events(await send(u.call, id, 'oi'));
+    expect(failed.at(-1)).toMatchObject({ type: 'error', code: 'AI_ERROR' });
+    const status = await u.call({ method: 'GET', url: '/api/v1/ai/status' });
+    expect(status.json<{ tokensToday: number }>().tokensToday).toBe(15);
+    const ok = events(await send(u.call, id, 'de novo'));
+    expect((ok.find((e) => e.type === 'done') as { message: { text: string } }).message.text).toBe(
+      'alterna',
+    );
+  });
+
+  it('reject or expiry never touch a proposal being applied', async () => {
+    const u = await onboardedUser(ctx.app, today);
+    impl = toolsThenText(
+      () => [
+        {
+          name: 'propose_goal_update',
+          input: { primary_goal: 'maintenance', target_rate_pct_per_week: null },
+        },
+      ],
+      () => 'Proposta pronta.',
+    );
+    const id = await newConversation(u.call);
+    const p = (
+      events(await send(u.call, id, 'muda')).find((e) => e.type === 'proposal') as {
+        proposal: ProposalDto;
+      }
+    ).proposal;
+    // Simula uma aplicação em andamento (trava).
+    await ctx.handle.db
+      .update(aiActionProposals)
+      .set({ resolvedAt: new Date(), expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(aiActionProposals.id, p.id));
+    const rej = await u.call({ method: 'POST', url: `/api/v1/ai/proposals/${p.id}/reject` });
+    expect(rej.statusCode).toBe(409);
+    const list = await u.call({ method: 'GET', url: '/api/v1/ai/proposals' });
+    expect(list.json<{ items: ProposalDto[] }>().items[0]?.status).toBe('pending');
+  });
+});
