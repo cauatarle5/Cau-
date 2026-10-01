@@ -132,7 +132,7 @@ export function TodayWorkoutCard({ today }: { today: string }) {
               <span>
                 {e.name}
                 {e.substitute ? (
-                  <span className="ml-1 text-xs text-amber-700">substituir</span>
+                  <span className="ml-1 text-xs text-amber-800 dark:text-amber-300">substituir</span>
                 ) : null}
               </span>
               <span className="tabular-nums text-muted-foreground">

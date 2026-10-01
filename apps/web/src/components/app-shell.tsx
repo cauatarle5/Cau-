@@ -34,6 +34,12 @@ export function AppShell({ userName, children }: { userName: string; children: R
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[15rem_1fr]">
+      <a
+        href="#conteudo"
+        className="sr-only z-50 rounded-lg bg-primary px-4 py-3 text-sm font-medium text-primary-foreground focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+      >
+        Pular para o conteúdo
+      </a>
       <aside className="hidden border-r border-border bg-card lg:flex lg:flex-col lg:gap-6 lg:p-4">
         <p className="px-3 pt-2 text-xl font-semibold tracking-tight">Atlas</p>
         <nav aria-label="Principal" className="flex flex-col gap-1">
@@ -66,7 +72,13 @@ export function AppShell({ userName, children }: { userName: string; children: R
           </Link>
         </header>
 
-        <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-24 pt-6 lg:pb-10">{children}</main>
+        <main
+          id="conteudo"
+          tabIndex={-1}
+          className="mx-auto w-full max-w-5xl flex-1 px-4 pb-24 pt-6 lg:pb-10"
+        >
+          {children}
+        </main>
         <QuickLogFab />
 
         <nav

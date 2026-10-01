@@ -176,7 +176,7 @@ export function StrengthSection({ data }: { data: Summary }) {
               <span className="shrink-0 tabular-nums">
                 {formatNumber(e.firstE1rm, 1)} → {formatNumber(e.lastE1rm, 1)} kg{' '}
                 <span
-                  className={cn(e.changePct > 0 ? 'text-emerald-600' : 'text-muted-foreground')}
+                  className={cn(e.changePct > 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground')}
                 >
                   ({signed(e.changePct, 1, '%')})
                 </span>
