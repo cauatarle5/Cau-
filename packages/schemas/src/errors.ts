@@ -13,6 +13,10 @@ export const errorCodes = [
   'FOOD_NOT_FOUND',
   'UNIT_NOT_CONVERTIBLE',
   'IDEMPOTENCY_KEY_REUSED',
+  'AI_UNAVAILABLE',
+  'AI_DAILY_LIMIT',
+  'AI_ERROR',
+  'PROPOSAL_NOT_PENDING',
   'INTERNAL_ERROR',
 ] as const;
 

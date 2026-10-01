@@ -31,7 +31,7 @@ import type {
   programGenerateSchema,
 } from '@atlas/schemas';
 
-import { AppError, notFound } from '../../lib/errors';
+import { AppError, notFound, validationError } from '../../lib/errors';
 import type { ExerciseBundle } from '../exercises/repository';
 import type { ExercisesService } from '../exercises/service';
 import type { ProfileService } from '../profile/service';
@@ -449,6 +449,34 @@ export function createAgendaService(deps: {
     },
 
     adapted,
+
+    /** Avisos do validador para templates propostos (troca de exercício do Coach). */
+    async validateTemplates(userId: string, list: readonly ValidationInput[]) {
+      return warnings(
+        userId,
+        list,
+        await catalogMap(
+          userId,
+          list.flatMap((t) => t.exercises.map((e) => e.exerciseId)),
+        ),
+      );
+    },
+
+    /**
+     * Aplica ao planejado a adaptação recalculada pelo core agora (proposta do Coach, ADR-056):
+     * o payload do modelo nunca define o treino.
+     */
+    async applyAdaptation(ctx: Ctx, id: string) {
+      const { dto } = await computeAdapted(ctx, id);
+      if (dto.plannedWorkout.sessionId)
+        throw validationError([{ field: 'id', message: 'Treino já iniciado' }]);
+      await repo.updatePlanned(ctx.userId, id, {
+        status: dto.changed ? 'adapted' : 'planned',
+        adaptedPayload: dto.exercises,
+        adaptationReason: dto.explanation.join(' '),
+      });
+      return dto;
+    },
 
     /** Exercícios da sessão a partir do plano adaptado; marca o planejado (ADR-045/047). */
     async sessionPlan(ctx: Ctx, id: string, redChoice?: 'light' | 'rest') {

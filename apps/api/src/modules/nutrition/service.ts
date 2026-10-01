@@ -10,6 +10,7 @@ import {
   planDayType,
   sportMet,
   type DayType,
+  type PrimaryGoal,
   type SportCode,
   type TargetsResult,
   type WeekDayPlan,
@@ -86,8 +87,16 @@ export function createNutritionService({
   realPlan,
   adaptiveTdee,
 }: NutritionServiceDeps) {
-  async function base(userId: string, today: string, opts: { formulaOnly?: boolean } = {}) {
-    const [prof, goal, trend, sports, availability, bodyFat, adaptive] = await Promise.all([
+  async function base(
+    userId: string,
+    today: string,
+    opts: {
+      formulaOnly?: boolean;
+      /** Objetivo hipotético (prévia de proposta do Coach, ADR-056). */
+      goalOverride?: { primaryGoal: PrimaryGoal; targetRatePctPerWeek: number | null };
+    } = {},
+  ) {
+    const [prof, currentGoal, trend, sports, availability, bodyFat, adaptive] = await Promise.all([
       profile.getProfile(userId),
       profile.currentGoal(userId, today),
       body.latestTrend(userId),
@@ -96,6 +105,8 @@ export function createNutritionService({
       body.latestBodyFat(userId),
       adaptiveTdee && !opts.formulaOnly ? adaptiveTdee(userId, today) : null,
     ]);
+    const goal =
+      currentGoal && opts.goalOverride ? { ...currentGoal, ...opts.goalOverride } : currentGoal;
     if (!prof || !goal || !trend) return { blocked: 'ONBOARDING_INCOMPLETE' as const };
     if (prof.clinicalCondition) return { blocked: 'CLINICAL_CONDITION' as const };
 
@@ -278,6 +289,24 @@ export function createNutritionService({
 
   return {
     targets,
+
+    /** Metas médias atuais × com outro objetivo (prévia, travas aplicadas). */
+    async previewGoal(
+      userId: string,
+      today: string,
+      goal: { primaryGoal: PrimaryGoal; targetRatePctPerWeek: number | null },
+    ) {
+      const [now, next] = await Promise.all([
+        base(userId, today),
+        base(userId, today, { goalOverride: goal }),
+      ]);
+      if (now.blocked || next.blocked) return null;
+      return {
+        before: now.result.targets,
+        after: next.result.targets,
+        locksApplied: next.result.breakdown.locksApplied,
+      };
+    },
 
     /** GET por fórmula (base do GET adaptativo); `null` se as metas estão bloqueadas. */
     async formulaTdee(userId: string, today: string): Promise<number | null> {

@@ -3,6 +3,7 @@ import { PgBoss } from 'pg-boss';
 
 import { localClock, localDate } from '@atlas/core';
 
+import type { CoachService } from '../modules/coach/service';
 import type { EnergyService } from '../modules/insights/energy';
 import type { InsightsRepository } from '../modules/insights/repository';
 import type { InsightsService } from '../modules/insights/service';
@@ -15,6 +16,8 @@ export interface JobDeps {
   repo: InsightsRepository;
   energy: EnergyService;
   insights: InsightsService;
+  /** Resumo semanal (P10.5); opcional para rodar sem o Coach. */
+  coach?: CoachService;
   log: FastifyBaseLogger;
 }
 
@@ -27,6 +30,7 @@ export async function runTick(deps: JobDeps, now: Date) {
   const users = await deps.repo.usersWithTimezone();
   let energy = 0;
   let insights = 0;
+  let summaries = 0;
   for (const u of users) {
     try {
       const { hour, weekday } = localClock(now, u.timezone);
@@ -42,6 +46,13 @@ export async function runTick(deps: JobDeps, now: Date) {
         await deps.insights.refresh(u.id, today, now);
         insights += 1;
       }
+      // Resumo da semana anterior a partir de segunda 06:00 (recupera se faltou, ADR-056).
+      if (deps.coach && hour >= 6 && !(await deps.coach.hasWeeklySummary(u.id, today))) {
+        await deps.coach.refreshWeeklySummary(u.id, today, (err) => {
+          deps.log.warn({ err, userId: u.id }, 'weekly summary AI failed; using template');
+        });
+        summaries += 1;
+      }
     } catch (err) {
       // Um usuário com erro (inclusive fuso inválido) não impede os outros.
       deps.log.error({ err, userId: u.id }, 'scheduled job failed for user');
@@ -55,7 +66,7 @@ export async function runTick(deps: JobDeps, now: Date) {
       new Date(now.getTime() - EXPIRED_INSIGHT_TTL_DAYS * 86_400_000),
     );
   }
-  return { energy, insights };
+  return { energy, insights, summaries };
 }
 
 /** Sobe o pg-boss no processo da API e agenda o job horário (ADR-049). */

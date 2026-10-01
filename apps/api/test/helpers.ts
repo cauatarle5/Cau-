@@ -5,7 +5,7 @@ import { inject } from 'vitest';
 
 import { createDb, type DbHandle } from '@atlas/db';
 
-import { buildApp } from '../src/app';
+import { buildApp, type BuildAppOptions } from '../src/app';
 import type { AppConfig } from '../src/config';
 
 export const WEB_ORIGIN = 'http://localhost:3000';
@@ -19,6 +19,7 @@ export interface TestContext {
 export async function createTestApp(
   overrides: Partial<AppConfig> = {},
   beforeReady?: (app: FastifyInstance) => void,
+  extra: Pick<BuildAppOptions, 'coachTransport' | 'parser'> = {},
 ): Promise<TestContext> {
   const databaseUrl = inject('databaseUrl');
   const handle = createDb(databaseUrl);
@@ -34,12 +35,16 @@ export async function createTestApp(
       authRateLimitMax: 1000,
       trustProxy: 'loopback',
       jobsEnabled: false,
+      aiModelChat: undefined,
+      aiDailyTokenLimit: 200_000,
+      aiFake: false,
       anthropicApiKey: undefined,
       aiModelFast: undefined,
       aiRateLimitMax: 1000,
       ...overrides,
     },
     db: handle.db,
+    ...extra,
   });
   beforeReady?.(app);
   await app.ready();

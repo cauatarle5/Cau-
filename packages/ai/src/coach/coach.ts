@@ -129,16 +129,12 @@ export function createCoach(options: CoachOptions) {
         if (message.stop_reason !== 'tool_use' || uses.length === 0) break;
 
         // Chamadas paralelas: executa todas e devolve numa única mensagem.
+        const records: ToolCallRecord[] = [];
         const results = await Promise.all(
-          uses.map(async (u): Promise<Anthropic.Beta.BetaToolResultBlockParam> => {
+          uses.map(async (u, i): Promise<Anthropic.Beta.BetaToolResultBlockParam> => {
             params.onEvent({ type: 'tool', name: u.name });
             if (!isCoachTool(u.name)) {
-              toolCalls.push({
-                name: u.name,
-                input: u.input,
-                result: 'unknown tool',
-                isError: true,
-              });
+              records[i] = { name: u.name, input: u.input, result: 'unknown tool', isError: true };
               return {
                 type: 'tool_result',
                 tool_use_id: u.id,
@@ -148,15 +144,17 @@ export function createCoach(options: CoachOptions) {
             }
             try {
               const result = await executeTool(u.name, u.input);
-              toolCalls.push({ name: u.name, input: u.input, result, isError: false });
+              records[i] = { name: u.name, input: u.input, result, isError: false };
               return { type: 'tool_result', tool_use_id: u.id, content: JSON.stringify(result) };
             } catch (err) {
               const msg = err instanceof Error ? err.message : 'Falha ao consultar os dados.';
-              toolCalls.push({ name: u.name, input: u.input, result: msg, isError: true });
+              records[i] = { name: u.name, input: u.input, result: msg, isError: true };
               return { type: 'tool_result', tool_use_id: u.id, is_error: true, content: msg };
             }
           }),
         );
+        // Na ordem em que o modelo pediu, não na de conclusão.
+        toolCalls.push(...records);
         turn.push({ role: 'user', content: results });
         if (text && !text.endsWith('\n')) {
           text += '\n\n';

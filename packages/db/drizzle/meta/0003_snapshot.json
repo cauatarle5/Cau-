@@ -68,9 +68,7 @@
         "users_email_unique": {
           "name": "users_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -147,12 +145,8 @@
           "name": "sessions_user_id_users_id_fk",
           "tableFrom": "sessions",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -162,9 +156,7 @@
         "sessions_token_hash_unique": {
           "name": "sessions_token_hash_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token_hash"
-          ]
+          "columns": ["token_hash"]
         }
       },
       "policies": {},
@@ -255,12 +247,8 @@
           "name": "availability_user_id_users_id_fk",
           "tableFrom": "availability",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -355,12 +343,8 @@
           "name": "equipment_access_user_id_users_id_fk",
           "tableFrom": "equipment_access",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -368,12 +352,8 @@
           "name": "equipment_access_equipment_code_equipment_code_fk",
           "tableFrom": "equipment_access",
           "tableTo": "equipment",
-          "columnsFrom": [
-            "equipment_code"
-          ],
-          "columnsTo": [
-            "code"
-          ],
+          "columnsFrom": ["equipment_code"],
+          "columnsTo": ["code"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -479,12 +459,8 @@
           "name": "goals_user_id_users_id_fk",
           "tableFrom": "goals",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -593,12 +569,8 @@
           "name": "limitations_user_id_users_id_fk",
           "tableFrom": "limitations",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -712,12 +684,8 @@
           "name": "profiles_user_id_users_id_fk",
           "tableFrom": "profiles",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -812,12 +780,8 @@
           "name": "sports_user_id_users_id_fk",
           "tableFrom": "sports",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -985,12 +949,8 @@
           "name": "body_measurements_user_id_users_id_fk",
           "tableFrom": "body_measurements",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1074,12 +1034,8 @@
           "name": "food_aliases_food_id_foods_id_fk",
           "tableFrom": "food_aliases",
           "tableTo": "foods",
-          "columnsFrom": [
-            "food_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["food_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1087,12 +1043,8 @@
           "name": "food_aliases_user_id_users_id_fk",
           "tableFrom": "food_aliases",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1192,12 +1144,8 @@
           "name": "food_nutrients_food_id_foods_id_fk",
           "tableFrom": "food_nutrients",
           "tableTo": "foods",
-          "columnsFrom": [
-            "food_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["food_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1394,12 +1342,8 @@
           "name": "foods_user_id_users_id_fk",
           "tableFrom": "foods",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1503,12 +1447,8 @@
           "name": "household_measures_food_id_foods_id_fk",
           "tableFrom": "household_measures",
           "tableTo": "foods",
-          "columnsFrom": [
-            "food_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["food_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1516,12 +1456,8 @@
           "name": "household_measures_user_id_users_id_fk",
           "tableFrom": "household_measures",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1581,12 +1517,8 @@
           "name": "user_food_usage_user_id_users_id_fk",
           "tableFrom": "user_food_usage",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1594,12 +1526,8 @@
           "name": "user_food_usage_food_id_foods_id_fk",
           "tableFrom": "user_food_usage",
           "tableTo": "foods",
-          "columnsFrom": [
-            "food_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["food_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1607,10 +1535,7 @@
       "compositePrimaryKeys": {
         "user_food_usage_user_id_food_id_pk": {
           "name": "user_food_usage_user_id_food_id_pk",
-          "columns": [
-            "user_id",
-            "food_id"
-          ]
+          "columns": ["user_id", "food_id"]
         }
       },
       "uniqueConstraints": {},
@@ -1712,12 +1637,8 @@
           "name": "meal_items_meal_id_meals_id_fk",
           "tableFrom": "meal_items",
           "tableTo": "meals",
-          "columnsFrom": [
-            "meal_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["meal_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1725,12 +1646,8 @@
           "name": "meal_items_food_id_foods_id_fk",
           "tableFrom": "meal_items",
           "tableTo": "foods",
-          "columnsFrom": [
-            "food_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["food_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1877,12 +1794,8 @@
           "name": "meals_user_id_users_id_fk",
           "tableFrom": "meals",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2027,12 +1940,8 @@
           "name": "nutrition_targets_user_id_users_id_fk",
           "tableFrom": "nutrition_targets",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2040,12 +1949,8 @@
           "name": "nutrition_targets_goal_id_goals_id_fk",
           "tableFrom": "nutrition_targets",
           "tableTo": "goals",
-          "columnsFrom": [
-            "goal_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["goal_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2120,12 +2025,8 @@
           "name": "parser_feedback_user_id_users_id_fk",
           "tableFrom": "parser_feedback",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2200,12 +2101,8 @@
           "name": "water_logs_user_id_users_id_fk",
           "tableFrom": "water_logs",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2221,60 +2118,32 @@
     "public.activity_lifestyle": {
       "name": "activity_lifestyle",
       "schema": "public",
-      "values": [
-        "sedentary",
-        "light",
-        "moderate",
-        "high"
-      ]
+      "values": ["sedentary", "light", "moderate", "high"]
     },
     "public.availability_kind": {
       "name": "availability_kind",
       "schema": "public",
-      "values": [
-        "gym",
-        "sport",
-        "any"
-      ]
+      "values": ["gym", "sport", "any"]
     },
     "public.body_fat_method": {
       "name": "body_fat_method",
       "schema": "public",
-      "values": [
-        "bioimpedance",
-        "skinfold",
-        "dexa",
-        "visual",
-        "other"
-      ]
+      "values": ["bioimpedance", "skinfold", "dexa", "visual", "other"]
     },
     "public.day_type": {
       "name": "day_type",
       "schema": "public",
-      "values": [
-        "rest",
-        "training",
-        "hard_training",
-        "sport",
-        "sport_and_training"
-      ]
+      "values": ["rest", "training", "hard_training", "sport", "sport_and_training"]
     },
     "public.equipment_location": {
       "name": "equipment_location",
       "schema": "public",
-      "values": [
-        "gym",
-        "home",
-        "other"
-      ]
+      "values": ["gym", "home", "other"]
     },
     "public.food_base_unit": {
       "name": "food_base_unit",
       "schema": "public",
-      "values": [
-        "g",
-        "ml"
-      ]
+      "values": ["g", "ml"]
     },
     "public.food_category": {
       "name": "food_category",
@@ -2301,27 +2170,12 @@
     "public.food_source_code": {
       "name": "food_source_code",
       "schema": "public",
-      "values": [
-        "taco",
-        "tbca",
-        "usda",
-        "off",
-        "user",
-        "recipe"
-      ]
+      "values": ["taco", "tbca", "usda", "off", "user", "recipe"]
     },
     "public.food_state": {
       "name": "food_state",
       "schema": "public",
-      "values": [
-        "raw",
-        "cooked",
-        "grilled",
-        "fried",
-        "boiled",
-        "roasted",
-        "ready"
-      ]
+      "values": ["raw", "cooked", "grilled", "fried", "boiled", "roasted", "ready"]
     },
     "public.household_unit": {
       "name": "household_unit",
@@ -2361,58 +2215,32 @@
     "public.meal_status": {
       "name": "meal_status",
       "schema": "public",
-      "values": [
-        "planned",
-        "logged"
-      ]
+      "values": ["planned", "logged"]
     },
     "public.primary_goal": {
       "name": "primary_goal",
       "schema": "public",
-      "values": [
-        "fat_loss",
-        "maintenance",
-        "muscle_gain",
-        "recomposition",
-        "performance"
-      ]
+      "values": ["fat_loss", "maintenance", "muscle_gain", "recomposition", "performance"]
     },
     "public.sex": {
       "name": "sex",
       "schema": "public",
-      "values": [
-        "male",
-        "female"
-      ]
+      "values": ["male", "female"]
     },
     "public.sport_code": {
       "name": "sport_code",
       "schema": "public",
-      "values": [
-        "football",
-        "futsal",
-        "running",
-        "cycling",
-        "swimming",
-        "other"
-      ]
+      "values": ["football", "futsal", "running", "cycling", "swimming", "other"]
     },
     "public.target_method": {
       "name": "target_method",
       "schema": "public",
-      "values": [
-        "formula",
-        "adaptive"
-      ]
+      "values": ["formula", "adaptive"]
     },
     "public.training_experience": {
       "name": "training_experience",
       "schema": "public",
-      "values": [
-        "beginner",
-        "intermediate",
-        "advanced"
-      ]
+      "values": ["beginner", "intermediate", "advanced"]
     }
   },
   "schemas": {},

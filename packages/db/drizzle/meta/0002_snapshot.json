@@ -68,9 +68,7 @@
         "users_email_unique": {
           "name": "users_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -147,12 +145,8 @@
           "name": "sessions_user_id_users_id_fk",
           "tableFrom": "sessions",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -162,9 +156,7 @@
         "sessions_token_hash_unique": {
           "name": "sessions_token_hash_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token_hash"
-          ]
+          "columns": ["token_hash"]
         }
       },
       "policies": {},
@@ -255,12 +247,8 @@
           "name": "availability_user_id_users_id_fk",
           "tableFrom": "availability",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -355,12 +343,8 @@
           "name": "equipment_access_user_id_users_id_fk",
           "tableFrom": "equipment_access",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -368,12 +352,8 @@
           "name": "equipment_access_equipment_code_equipment_code_fk",
           "tableFrom": "equipment_access",
           "tableTo": "equipment",
-          "columnsFrom": [
-            "equipment_code"
-          ],
-          "columnsTo": [
-            "code"
-          ],
+          "columnsFrom": ["equipment_code"],
+          "columnsTo": ["code"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -479,12 +459,8 @@
           "name": "goals_user_id_users_id_fk",
           "tableFrom": "goals",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -593,12 +569,8 @@
           "name": "limitations_user_id_users_id_fk",
           "tableFrom": "limitations",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -712,12 +684,8 @@
           "name": "profiles_user_id_users_id_fk",
           "tableFrom": "profiles",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -812,12 +780,8 @@
           "name": "sports_user_id_users_id_fk",
           "tableFrom": "sports",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -985,12 +949,8 @@
           "name": "body_measurements_user_id_users_id_fk",
           "tableFrom": "body_measurements",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1006,81 +966,42 @@
     "public.activity_lifestyle": {
       "name": "activity_lifestyle",
       "schema": "public",
-      "values": [
-        "sedentary",
-        "light",
-        "moderate",
-        "high"
-      ]
+      "values": ["sedentary", "light", "moderate", "high"]
     },
     "public.availability_kind": {
       "name": "availability_kind",
       "schema": "public",
-      "values": [
-        "gym",
-        "sport",
-        "any"
-      ]
+      "values": ["gym", "sport", "any"]
     },
     "public.body_fat_method": {
       "name": "body_fat_method",
       "schema": "public",
-      "values": [
-        "bioimpedance",
-        "skinfold",
-        "dexa",
-        "visual",
-        "other"
-      ]
+      "values": ["bioimpedance", "skinfold", "dexa", "visual", "other"]
     },
     "public.equipment_location": {
       "name": "equipment_location",
       "schema": "public",
-      "values": [
-        "gym",
-        "home",
-        "other"
-      ]
+      "values": ["gym", "home", "other"]
     },
     "public.primary_goal": {
       "name": "primary_goal",
       "schema": "public",
-      "values": [
-        "fat_loss",
-        "maintenance",
-        "muscle_gain",
-        "recomposition",
-        "performance"
-      ]
+      "values": ["fat_loss", "maintenance", "muscle_gain", "recomposition", "performance"]
     },
     "public.sex": {
       "name": "sex",
       "schema": "public",
-      "values": [
-        "male",
-        "female"
-      ]
+      "values": ["male", "female"]
     },
     "public.sport_code": {
       "name": "sport_code",
       "schema": "public",
-      "values": [
-        "football",
-        "futsal",
-        "running",
-        "cycling",
-        "swimming",
-        "other"
-      ]
+      "values": ["football", "futsal", "running", "cycling", "swimming", "other"]
     },
     "public.training_experience": {
       "name": "training_experience",
       "schema": "public",
-      "values": [
-        "beginner",
-        "intermediate",
-        "advanced"
-      ]
+      "values": ["beginner", "intermediate", "advanced"]
     }
   },
   "schemas": {},

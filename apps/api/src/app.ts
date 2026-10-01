@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import Anthropic from '@anthropic-ai/sdk';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import Fastify, { LogController, type FastifyInstance } from 'fastify';
@@ -9,7 +10,13 @@ import {
   validatorCompiler,
 } from 'fastify-type-provider-zod';
 
-import { createFoodParser, type FoodParser } from '@atlas/ai';
+import {
+  anthropicTransport,
+  createFoodParser,
+  scriptedTransport,
+  type CoachTransport,
+  type FoodParser,
+} from '@atlas/ai';
 import type { Database } from '@atlas/db';
 
 import type { AppConfig } from './config';
@@ -17,6 +24,7 @@ import { startJobs } from './jobs/worker';
 import { analyticsRoutes } from './modules/analytics';
 import { authRoutes } from './modules/auth/index';
 import { bodyRoutes } from './modules/body';
+import { coachRoutes, createCoachRepository, createCoachService } from './modules/coach';
 import { exercisesRoutes } from './modules/exercises';
 import { foodsRoutes } from './modules/foods';
 import { healthRoutes } from './modules/health/index';
@@ -37,11 +45,18 @@ export interface BuildAppOptions {
   db: Database;
   /** Permite injetar um parser falso nos testes. */
   parser?: FoodParser;
+  /** Transporte do Coach para testes (`null` = IA indisponível). */
+  coachTransport?: CoachTransport | null;
 }
 
 const REQUEST_ID_PATTERN = /^[\w-]{1,64}$/;
 
-export async function buildApp({ config, db, parser }: BuildAppOptions): Promise<FastifyInstance> {
+export async function buildApp({
+  config,
+  db,
+  parser,
+  coachTransport,
+}: BuildAppOptions): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
       level: config.logLevel,
@@ -86,6 +101,29 @@ export async function buildApp({ config, db, parser }: BuildAppOptions): Promise
         app.log.warn({ err }, 'ai parser failed; falling back to rules');
       },
     });
+  // Coach (ADR-054/056): transporte real com chave e modelo; roteirizado só com AI_FAKE.
+  const transport: CoachTransport | null =
+    coachTransport !== undefined
+      ? coachTransport
+      : config.aiFake
+        ? scriptedTransport()
+        : config.anthropicApiKey && config.aiModelChat
+          ? anthropicTransport(new Anthropic({ apiKey: config.anthropicApiKey }))
+          : null;
+  const coach = createCoachService({
+    repo: createCoachRepository(db),
+    svc,
+    parser: foodParser,
+    config: {
+      transport,
+      model: transport
+        ? config.aiFake && coachTransport === undefined
+          ? 'scripted'
+          : (config.aiModelChat ?? 'test')
+        : null,
+      dailyTokenLimit: config.aiDailyTokenLimit,
+    },
+  });
 
   await app.register(
     (v1, _opts, done) => {
@@ -116,6 +154,7 @@ export async function buildApp({ config, db, parser }: BuildAppOptions): Promise
         energy: svc.energy,
         context: svc.dailyContext,
       });
+      coachRoutes(v1, { service: coach });
       done();
     },
     { prefix: '/api/v1' },
@@ -128,6 +167,7 @@ export async function buildApp({ config, db, parser }: BuildAppOptions): Promise
         repo: svc.insightsRepo,
         energy: svc.energy,
         insights: svc.insights,
+        coach,
         log: app.log,
       });
     });

@@ -17,6 +17,10 @@ const envSchema = z.object({
   TRUST_PROXY: z.string().default('loopback'),
   ANTHROPIC_API_KEY: z.string().optional(),
   AI_MODEL_FAST: z.string().optional(),
+  AI_MODEL_CHAT: z.string().optional(),
+  AI_DAILY_TOKEN_LIMIT: z.coerce.number().int().positive().default(200_000),
+  // Coach roteirizado sem rede, só para E2E/dev (ADR-056); recusado em produção.
+  AI_FAKE: booleanString.optional(),
   AI_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(30),
   COOKIE_SECURE: booleanString.optional(),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(5),
@@ -38,11 +42,16 @@ export interface AppConfig {
   anthropicApiKey: string | undefined;
   aiModelFast: string | undefined;
   aiRateLimitMax: number;
+  aiModelChat: string | undefined;
+  aiDailyTokenLimit: number;
+  aiFake: boolean;
   jobsEnabled: boolean;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = envSchema.parse(env);
+  if (parsed.AI_FAKE && parsed.NODE_ENV === 'production')
+    throw new Error('AI_FAKE não pode ser usado em produção');
   return {
     nodeEnv: parsed.NODE_ENV,
     databaseUrl: parsed.DATABASE_URL,
@@ -57,5 +66,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     aiModelFast: parsed.AI_MODEL_FAST || undefined,
     aiRateLimitMax: parsed.AI_RATE_LIMIT_MAX,
     jobsEnabled: parsed.JOBS_ENABLED ?? false,
+    aiModelChat: parsed.AI_MODEL_CHAT || undefined,
+    aiDailyTokenLimit: parsed.AI_DAILY_TOKEN_LIMIT,
+    aiFake: parsed.AI_FAKE ?? false,
   };
 }
