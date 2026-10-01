@@ -118,3 +118,7 @@ Receita como alimento: `foods.source_code = 'recipe'`, `source_ref = recipe_id`.
 - Fase 5: `mesocycles`, `planned_workouts` (agenda materializada ao ativar, ADR-043), `activities`, `daily_checkins` (prontidão persistida), `pain_reports`; `workout_sessions.planned_workout_id`, `adapted`, `adaptation_note`. `training_load_daily` adiada (carga calculada sob demanda, ADR-044).
 - Fase 6: `energy_estimates` (GET adaptativo semanal, ADR-051) e `insights` (dedup por chave, ADR-050), migration 0011 aditiva. `daily_context` e `training_load_daily` continuam calculados sob demanda. Fila do pg-boss no schema `pgboss`, criado pelo próprio pg-boss quando `JOBS_ENABLED=true` (ADR-049).
 - Fase 7: `ai_conversations`, `ai_messages`, `ai_action_proposals` e `weekly_summaries` (migration 0012, aditiva).
+- Fase 8: sem tabelas nem migrations novas.
+  - **Exportação (ADR-061):** cobre toda tabela com `user_id`, derivada do schema por `userTables()`. `sessions` e `idempotency_keys` ficam de fora, e um teste compara com `information_schema`.
+  - **Exclusão:** apaga o `users`; todas as FKs para `users` são `on delete cascade`.
+  - **Backup diário:** `pg_dump -Fc` pelo container de backup (ADR-059).

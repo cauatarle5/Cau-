@@ -1,7 +1,7 @@
 # PROGRESS: Atlas
 
 ## Fase atual
-**Fase 7. Coach IA: implementada; falta rodar a avaliação com o modelo real (DoD) quando houver `ANTHROPIC_API_KEY`.** Próximo: avaliação real e depois **Fase 8. Acabamento e deploy.**
+**Fase 8. Acabamento e deploy: implementada e validada localmente e no CI.** O DoD ("uso diário real pelo dono por 2 semanas sem bloqueios") depende do deploy no servidor do dono, seguindo `docs/DEPLOY.md`. A avaliação do Coach com o modelo real (DoD da Fase 7) continua pendente da `ANTHROPIC_API_KEY`.
 
 ## Feito
 ### Fase 0. Fundação
@@ -100,11 +100,8 @@
 - Uma proposta cuja conclusão falhe depois de aplicada fica travada como pendente; não é reaplicada (OPEN_QUESTIONS).
 - `training_load_daily` e `daily_context` materializados: adiados, calculados sob demanda (ADR-044/049).
 - Reversão local de operação offline recusada (OPEN_QUESTIONS).
-- Treino offline com recarga de página: PWA, Fase 8.
-- Botão flutuante de registro rápido (12.1): entra com os registros que ele aciona.
-- Exportação/exclusão de conta (LGPD) e PWA: Fase 8.
-- Deploy: definir `TRUST_PROXY` e `WEB_ORIGIN` (ADR-014).
-- `/entrar` e `/cadastro` não redirecionam quem já está logado (UX, baixa prioridade).
+- **DoD da Fase 8:** subir no servidor do dono (`docs/DEPLOY.md`), configurar a cópia externa do backup (S3) e usar por 2 semanas; registrar aqui os bloqueios encontrados.
+- Notificações push, múltiplas instâncias (store compartilhado de rate limit, ADR-014) e reconciliação de proposta travada: futuras.
 
 ## Bugs conhecidos
 - Nenhum bloqueante. Itens menores em `OPEN_QUESTIONS.md` (macros acima das kcal com proteína muito alta; aviso de peso retroativo cliente × API).
@@ -117,7 +114,10 @@
 - `apps/web/AGENTS.md` e `apps/web/CLAUDE.md` são gerados pelo `next dev`.
 - O E2E da Fase 6 dispensa um insight do usuário demo: rode `pnpm db:seed:demo` antes de repetir a suíte localmente.
 - Jobs: `JOBS_ENABLED=true` liga o worker pg-boss (cria o schema `pgboss` no banco).
+- O E2E e o `pnpm perf` sobem o build de produção do web (`next build && next start`); para iterar mais rápido, `E2E_WEB_DEV=1`. Um `next start` esquecido na porta 3000 é reaproveitado (servindo um build antigo): encerre-o antes. Não use `pkill -f` com um padrão que case com o próprio comando.
+- Build das imagens neste ambiente (proxy com TLS interceptado e Docker Hub com limite): imagens base pelo `mirror.gcr.io` (re-tag local), `docker build --network host --build-arg HTTPS_PROXY=$HTTPS_PROXY --secret id=ca_bundle,src=/root/.ccr/ca-bundle.crt`. A imagem de backup usa `--build-arg EXTRA_PACKAGES=` porque o CDN do Alpine é bloqueado aqui.
 
 ## Próximo passo
 - Com `ANTHROPIC_API_KEY`: `pnpm db:seed:demo` e depois `AI_MODEL_CHAT=claude-sonnet-5-5 pnpm ai:eval:coach`. Analisar o relatório; se não der 14/14, ajustar o prompt ou as ferramentas.
-- Depois, `/fase 8`: acabamento e deploy (PWA, desempenho, acessibilidade, exportação e exclusão de conta, deploy com backup), conforme `docs/ROADMAP.md`.
+- Deploy no servidor do dono: escolher VPS e domínio, `cp deploy/.env.production.example deploy/.env`, preencher e subir (`docs/DEPLOY.md`). Configurar o S3 do backup. Rodar `deploy/test-backup.sh` e o smoke contra o domínio.
+- Duas semanas de uso real (DoD da Fase 8): anotar bloqueios aqui e corrigi-los antes de qualquer fase nova (Fase 9+ é futura e não deve ser implementada sem decisão).
