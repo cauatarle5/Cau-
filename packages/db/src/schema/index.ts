@@ -7,3 +7,4 @@ export * from './foods';
 export * from './meals';
 export * from './training';
 export * from './recipes';
+export * from './recovery';

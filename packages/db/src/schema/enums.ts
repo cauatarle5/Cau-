@@ -155,3 +155,29 @@ export const recordTypeEnum = pgEnum('record_type', [
   'rep_at_load',
   'volume_session',
 ]);
+export const mesocyclePhaseEnum = pgEnum('mesocycle_phase', [
+  'accumulation',
+  'intensification',
+  'realization',
+  'deload',
+]);
+export const plannedWorkoutStatusEnum = pgEnum('planned_workout_status', [
+  'planned',
+  'done',
+  'skipped',
+  'moved',
+  'adapted',
+]);
+export const activitySourceEnum = pgEnum('activity_source', ['manual', 'wearable']);
+export const painRegionEnum = pgEnum('pain_region', [
+  'shoulder',
+  'elbow',
+  'wrist',
+  'lower_back',
+  'hip',
+  'knee',
+  'ankle',
+  'neck',
+  'other',
+]);
+export const painTypeEnum = pgEnum('pain_type', ['joint', 'muscle', 'other']);

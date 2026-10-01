@@ -17,6 +17,8 @@ import {
 
 import { createdAt, idColumn, updatedAt } from './columns';
 import {
+  mesocyclePhaseEnum,
+  plannedWorkoutStatusEnum,
   exercisePreferenceEnum,
   generatedByEnum,
   lateralityEnum,
@@ -181,6 +183,49 @@ export const templateExercises = pgTable(
   (t) => [index('template_exercises_template_idx').on(t.workoutTemplateId)],
 );
 
+/** Mesociclo padrão do programa (ADR-043). */
+export const mesocycles = pgTable(
+  'mesocycles',
+  {
+    id: idColumn(),
+    programId: uuid('program_id')
+      .notNull()
+      .references(() => programs.id, { onDelete: 'cascade' }),
+    order: smallint('order').notNull(),
+    name: text('name').notNull(),
+    phase: mesocyclePhaseEnum('phase').notNull(),
+    weeks: smallint('weeks').notNull(),
+    startDate: date('start_date', { mode: 'string' }).notNull(),
+    rirProgression: integer('rir_progression').array().notNull(),
+    volumeProgression: doublePrecision('volume_progression').array().notNull(),
+  },
+  (t) => [index('mesocycles_program_idx').on(t.programId)],
+);
+
+/** Agenda materializada ao ativar o programa (ADR-043). */
+export const plannedWorkouts = pgTable(
+  'planned_workouts',
+  {
+    id: idColumn(),
+    userId: userRef(),
+    date: date('date', { mode: 'string' }).notNull(),
+    workoutTemplateId: uuid('workout_template_id')
+      .notNull()
+      .references(() => workoutTemplates.id, { onDelete: 'cascade' }),
+    mesocycleId: uuid('mesocycle_id').references(() => mesocycles.id, { onDelete: 'cascade' }),
+    weekIndex: smallint('week_index').notNull(),
+    status: plannedWorkoutStatusEnum('status').notNull().default('planned'),
+    adaptationReason: text('adaptation_reason'),
+    adaptedPayload: jsonb('adapted_payload'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index('planned_workouts_user_date_idx').on(t.userId, t.date),
+    index('planned_workouts_user_status_date_idx').on(t.userId, t.status, t.date),
+  ],
+);
+
 /** `workout_template_id` liga a sessão ao template sem agenda (ADR-035). */
 export const workoutSessions = pgTable(
   'workout_sessions',
@@ -189,6 +234,9 @@ export const workoutSessions = pgTable(
     userId: userRef(),
     date: date('date', { mode: 'string' }).notNull(),
     workoutTemplateId: uuid('workout_template_id').references(() => workoutTemplates.id, {
+      onDelete: 'set null',
+    }),
+    plannedWorkoutId: uuid('planned_workout_id').references(() => plannedWorkouts.id, {
       onDelete: 'set null',
     }),
     /** Snapshot do nome (histórico imutável). */
@@ -308,3 +356,5 @@ export type WorkoutSessionRow = typeof workoutSessions.$inferSelect;
 export type SessionExerciseRow = typeof sessionExercises.$inferSelect;
 export type SetLogRow = typeof setLogs.$inferSelect;
 export type PersonalRecordRow = typeof personalRecords.$inferSelect;
+export type MesocycleRow = typeof mesocycles.$inferSelect;
+export type PlannedWorkoutRow = typeof plannedWorkouts.$inferSelect;
