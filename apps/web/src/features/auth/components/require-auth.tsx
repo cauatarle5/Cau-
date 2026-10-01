@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { ApiError, isNetworkError } from '@/lib/api';
 import { setOfflineUser } from '@/offline/kv';
@@ -43,7 +43,12 @@ export function RequireAuth({ children }: { children: (user: UserPublic) => Reac
   }, [unauthenticated, router]);
 
   // Sem rede: segue com o último usuário deste aparelho (treino ativo offline, ADR-060).
-  const offlineUser = isNetworkError(me.error) ? lastUser() : null;
+  // Fica "grudado" até a API responder: um refetch sem dados volta a query para `pending` e
+  // desmontaria a tela a cada tentativa.
+  const [offline, setOffline] = useState(false);
+  if (isNetworkError(me.error) && !offline) setOffline(true);
+  if ((me.data || unauthenticated) && offline) setOffline(false);
+  const offlineUser = offline && !me.data ? lastUser() : null;
   const user = me.data?.user ?? offlineUser;
 
   // Dados offline (fila e treino ativo) ficam separados por usuário (ADR-034).

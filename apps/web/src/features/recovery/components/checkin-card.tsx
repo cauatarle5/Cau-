@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useId } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
@@ -24,6 +24,7 @@ const EMPTY: Values = {
 
 /** Check-in em ~10 s (P12.2): 5 seletores de 1 a 5 e horas de sono; depois, a prontidão. */
 export function CheckinCard({ date }: { date: string }) {
+  const uid = useId();
   const checkin = useCheckin(date);
   const save = usePutCheckin(date);
   const [editing, setEditing] = useState(false);
@@ -116,9 +117,9 @@ export function CheckinCard({ date }: { date: string }) {
       ))}
       <div className="flex items-end gap-2">
         <div className="space-y-1.5">
-          <Label htmlFor="sleep-hours">Horas de sono</Label>
+          <Label htmlFor={`${uid}-sleep`}>Horas de sono</Label>
           <Input
-            id="sleep-hours"
+            id={`${uid}-sleep`}
             inputMode="decimal"
             className="w-24"
             value={sleep}

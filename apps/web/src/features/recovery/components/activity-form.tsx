@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useId } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
@@ -16,6 +16,7 @@ import { DEMAND_LABELS } from '../labels';
 
 /** Registro de esporte/cardio (P8.5): entra na carga e na adaptação do dia seguinte. */
 export function ActivityForm({ today }: { today: string }) {
+  const uid = useId();
   const create = useCreateActivity();
   const [sport, setSport] = useState<(typeof sportCodeSchema.options)[number]>('football');
   const [when, setWhen] = useState<'today' | 'yesterday'>('today');
@@ -34,9 +35,9 @@ export function ActivityForm({ today }: { today: string }) {
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1.5">
-          <Label htmlFor="activity-sport">Esporte</Label>
+          <Label htmlFor={`${uid}-sport`}>Esporte</Label>
           <Select
-            id="activity-sport"
+            id={`${uid}-sport`}
             value={sport}
             onChange={(e) => {
               setSport(sportCodeSchema.parse(e.target.value));
@@ -50,9 +51,9 @@ export function ActivityForm({ today }: { today: string }) {
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="activity-when">Quando</Label>
+          <Label htmlFor={`${uid}-when`}>Quando</Label>
           <Select
-            id="activity-when"
+            id={`${uid}-when`}
             value={when}
             onChange={(e) => {
               setWhen(e.target.value === 'yesterday' ? 'yesterday' : 'today');
@@ -63,9 +64,9 @@ export function ActivityForm({ today }: { today: string }) {
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="activity-minutes">Duração (min)</Label>
+          <Label htmlFor={`${uid}-minutes`}>Duração (min)</Label>
           <Input
-            id="activity-minutes"
+            id={`${uid}-minutes`}
             inputMode="numeric"
             value={minutes}
             onChange={(e) => {
@@ -74,9 +75,9 @@ export function ActivityForm({ today }: { today: string }) {
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="activity-demand">Exigência nas pernas</Label>
+          <Label htmlFor={`${uid}-demand`}>Exigência nas pernas</Label>
           <Select
-            id="activity-demand"
+            id={`${uid}-demand`}
             value={String(demand)}
             onChange={(e) => {
               const v = Number(e.target.value);

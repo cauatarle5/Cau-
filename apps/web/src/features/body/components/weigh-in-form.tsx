@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type SyntheticEvent } from 'react';
+import { useState, type SyntheticEvent, useId } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardTitle } from '@/components/ui/card';
@@ -23,6 +23,7 @@ const OPTIONAL = [
 type OptionalKey = (typeof OPTIONAL)[number][0];
 
 export function WeighInForm() {
+  const uid = useId();
   const today = useToday();
   const trend = useTrend('1900-01-01', today);
   const create = useCreateMeasurement();
@@ -75,7 +76,7 @@ export function WeighInForm() {
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
         <div className="grid grid-cols-2 gap-3">
           <FormField
-            id="weigh-weight"
+            id={`${uid}-weight`}
             label="Peso (kg)"
             type="number"
             step="0.1"
@@ -87,7 +88,7 @@ export function WeighInForm() {
             }}
           />
           <FormField
-            id="weigh-date"
+            id={`${uid}-date`}
             label="Data"
             type="date"
             max={today}
@@ -105,7 +106,7 @@ export function WeighInForm() {
             {OPTIONAL.map(([key, label]) => (
               <FormField
                 key={key}
-                id={`weigh-${key}`}
+                id={`${uid}-${key}`}
                 label={label}
                 type="number"
                 step="0.1"

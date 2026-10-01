@@ -1,7 +1,7 @@
 'use client';
 
 import { Trash2 } from 'lucide-react';
-import { useState, type SyntheticEvent } from 'react';
+import { useState, type SyntheticEvent, useId } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -157,6 +157,7 @@ function ReviewRow({
 
 /** "O que você comeu?": texto → itens editáveis → um toque para confirmar (P6.2, P12.4). */
 export function QuickLog({ date, compact = false }: { date: string; compact?: boolean }) {
+  const uid = useId();
   const [text, setText] = useState('');
   const [slot, setSlot] = useState<MealSlot>(() => suggestSlot(new Date().getHours()));
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string }>();
@@ -221,10 +222,10 @@ export function QuickLog({ date, compact = false }: { date: string; compact?: bo
   return (
     <div className="space-y-3">
       <form onSubmit={(e) => void onParse(e)} className="space-y-2">
-        <Label htmlFor={`quicklog-${date}`}>O que você comeu?</Label>
+        <Label htmlFor={`${uid}-text`}>O que você comeu?</Label>
         <div className="flex gap-2">
           <Input
-            id={`quicklog-${date}`}
+            id={`${uid}-text`}
             placeholder="ex.: 200g de arroz, 150g de frango e 100g de feijão"
             value={text}
             onChange={(e) => {

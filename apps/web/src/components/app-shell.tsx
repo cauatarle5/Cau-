@@ -7,6 +7,8 @@ import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
 
+import { QuickLogFab } from './quick-log-fab';
+
 interface NavItem {
   href: string;
   label: string;
@@ -65,6 +67,7 @@ export function AppShell({ userName, children }: { userName: string; children: R
         </header>
 
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-24 pt-6 lg:pb-10">{children}</main>
+        <QuickLogFab />
 
         <nav
           aria-label="Principal"
