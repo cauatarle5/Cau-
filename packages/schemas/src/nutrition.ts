@@ -41,6 +41,13 @@ export const targetsBreakdownSchema = z.object({
     exerciseKcalPerDay: z.number(),
     kcal: z.number(),
   }),
+  adaptive: z
+    .object({
+      kcal: z.number(),
+      confidence: z.enum(['medium', 'high']),
+      formulaKcal: z.number(),
+    })
+    .nullable(),
   adjustment: z.object({
     source: z.enum(['goal', 'rate']),
     pct: z.number(),

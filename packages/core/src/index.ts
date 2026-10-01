@@ -4,3 +4,6 @@ export * from './nutrition';
 export * from './food';
 export * from './training';
 export * from './recovery';
+export * from './insights';
+export * from './analytics';
+export * from './context';

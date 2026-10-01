@@ -34,6 +34,8 @@ export interface TargetsInput {
   proteinGPerKg?: number | null;
   gymSessionMinutes: readonly number[];
   sports: readonly PlannedSport[];
+  /** GET adaptativo com confiança média/alta (P5.3, ADR-051); substitui o GET da fórmula. */
+  adaptiveTdee?: { kcal: number; confidence: 'medium' | 'high' } | null;
 }
 
 export interface Targets {
@@ -51,6 +53,8 @@ export interface TargetsBreakdown {
   bmr: BmrResult;
   exercise: PlannedExercise;
   tdee: TdeeResult;
+  /** Presente quando o GET usado veio dos dados reais; `formulaKcal` é o GET por fórmula. */
+  adaptive: { kcal: number; confidence: 'medium' | 'high'; formulaKcal: number } | null;
   adjustment: EnergyAdjustment;
   kcalBeforeLocks: number;
   locksApplied: SafetyLock[];
@@ -80,7 +84,9 @@ export function computeTargets(input: TargetsInput): TargetsResult {
     bodyFat: input.bodyFat ?? null,
   });
   const exercise = plannedWeeklyExercise(input.gymSessionMinutes, input.sports, weightKg);
-  const tdee = tdeeFormula(bmr.kcal, input.lifestyle, exercise.kcalPerWeek);
+  const formula = tdeeFormula(bmr.kcal, input.lifestyle, exercise.kcalPerWeek);
+  const adaptive = input.adaptiveTdee ? { ...input.adaptiveTdee, formulaKcal: formula.kcal } : null;
+  const tdee = adaptive ? { ...formula, kcal: adaptive.kcal } : formula;
   const adjustment = energyAdjustment({
     goal: input.goal,
     experience: input.experience,
@@ -128,6 +134,7 @@ export function computeTargets(input: TargetsInput): TargetsResult {
       bmr,
       exercise,
       tdee,
+      adaptive,
       adjustment,
       kcalBeforeLocks,
       locksApplied: locked.applied,

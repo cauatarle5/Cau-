@@ -8,3 +8,4 @@ export * from './targets';
 export * from './day-type';
 export * from './planning';
 export * from './suggest';
+export * from './adaptive';
