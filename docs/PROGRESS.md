@@ -1,7 +1,7 @@
 # PROGRESS: Atlas
 
 ## Fase atual
-**Fase 4. Receitas e planejamento alimentar: concluída.** Próximo: **Fase 5. Periodização, esportes e recuperação.**
+**Fase 5. Periodização, esportes e recuperação: concluída.** Próximo: **Fase 6. Integração e motor de insights.**
 
 ## Feito
 ### Fase 0. Fundação
@@ -48,12 +48,21 @@
 - **Correção extra:** empate na busca entre alias curado e alias pessoal agora favorece o alimento que o usuário usa (bug latente da Fase 2).
 - **DoD:** planejar o dia inteiro, ver o restante mudar em tempo real e receber sugestão de ajuste ao ultrapassar a gordura.
 
+### Fase 5. Periodização, esportes e recuperação
+- **Core:** prontidão (P8.5, com ajustes de ACWR e esporte de pernas), carga interna (sRPE, aguda, crônica EWMA, ACWR com 28 dias de histórico, monotonia, strain), progressão dupla e redução de carga dentro de 5–10%, estagnação e queda de desempenho, mesociclo padrão, agenda com rotação contínua dos templates e pernas longe dos esportes, gerador de programa (divisão, exercícios por sessão, seleção com equipamento/preferências/limitações, volume para a faixa produtiva), validador, adaptação do treino do dia com explicação por regras. 205 testes no core.
+- **DB:** `mesocycles`, `planned_workouts` (snapshot de template/programa), `activities`, `daily_checkins`, `pain_reports`; `workout_sessions.planned_workout_id/adapted/adaptation_note` (migrations 0008–0010, aditivas).
+- **API:** `POST programs/generate`, avisos do validador nos programas, agenda materializada ao ativar (histórico preservado), `planned-workouts` (listar, mover, pular, adaptado), `POST sessions` a partir do planejado (adaptação + metas), atividades, check-ins com prontidão persistida, registro de dor, `recovery/load` (ADR-043 a 047). 90 testes de integração.
+- **Web:** Hoje com check-in de ~10 s e indicador de prontidão; treino do dia adaptado com motivos, escolha leve/descanso no vermelho e "Começar"; Treino com gerador de programa (prévia e avisos), agenda da semana e registro de atividade; treino ativo com meta da progressão e registro de dor (fila offline); Progresso com carga e ACWR.
+- **E2E:** DoD (futebol RPE 8 ontem + noite ruim → prontidão 24, sessão leve, pernas reduzidas e terra fora, explicação citando sono e futebol, sessão iniciada já adaptada).
+- **Revisão (checklist 16.3):** 3 problemas altos (histórico da agenda apagado ao reativar/editar o programa; IDOR e 500 no registro de dor) e 4 médios corrigidos com testes (ADR-047); baixos corrigidos.
+- **DoD:** futebol intenso ontem + noite ruim hoje produz treino adaptado com explicação coerente.
+
 ## Pendente (para fases seguintes)
 - GET adaptativo semanal: Fase 6.
 - Plano semanal e lista de compras (Parte 15); IA redigindo sugestões: Fase 7 (números sempre do solver).
 - Leite fluido e itens ausentes na TACO; fallback USDA bloqueado pela rede deste ambiente (OPEN_QUESTIONS).
 - Avaliação do parser com 100 frases e da IA real: Fase 7 (sem `ANTHROPIC_API_KEY` neste ambiente, só as regras foram avaliadas).
-- Mesociclos, agenda (`planned_workouts`), progressão dupla nas metas, registro de dor e adaptação por prontidão: Fase 5 (ADR-035).
+- `daily-context`, recálculo do tipo do dia/metas por atividade registrada, `training_load_daily` + pg-boss e insights (destreino, monotonia, deload antecipado, correlações): Fase 6 (ADR-044).
 - Limpeza de `idempotency_keys` (job) e reversão local de operação offline recusada (OPEN_QUESTIONS).
 - Treino offline com recarga de página: PWA, Fase 8.
 - Botão flutuante de registro rápido (12.1): entra com os registros que ele aciona.
@@ -67,8 +76,9 @@
 ## Notas de ambiente
 - Sem Docker: defina `TEST_DATABASE_URL` para os testes de integração (ADR-010).
 - Chromium pré-instalado: `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/caminho/chrome pnpm test:e2e` (neste ambiente: `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`).
-- Após reiniciar o contêiner, o Docker pode estar parado: `dockerd &` e depois `pnpm db:up`. Com servidores de dev já rodando, o Playwright os reaproveita; o limite de cadastro/login (`AUTH_RATE_LIMIT_MAX=5`) pode derrubar a suíte, então pare-os antes ou suba a API com um limite maior.
+- Após reiniciar o contêiner, o Docker pode estar parado: `dockerd &` e depois `pnpm db:up`.
+- Antes de commitar, rode o typecheck de cada pacote sem o cache do turbo (`npx tsc --noEmit` em cada um): o cache já escondeu uma quebra do web num commit intermediário. Com servidores de dev já rodando, o Playwright os reaproveita; o limite de cadastro/login (`AUTH_RATE_LIMIT_MAX=5`) pode derrubar a suíte, então pare-os antes ou suba a API com um limite maior.
 - `apps/web/AGENTS.md` e `apps/web/CLAUDE.md` são gerados pelo `next dev`.
 
 ## Próximo passo
-- `/fase 5`: periodização, esportes e recuperação (gerador de programa por regras, mesociclos, agenda, atividades, check-in, ACWR, prontidão, adaptação do treino do dia, progressão dupla, registro de dor), conforme `docs/ROADMAP.md`.
+- `/fase 6`: integração e motor de insights (daily-context, recálculo de metas por treino/atividade, jobs com pg-boss, insights determinísticos e correlações), conforme `docs/ROADMAP.md`.
