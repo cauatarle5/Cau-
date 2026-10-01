@@ -1,12 +1,11 @@
-import { EmptyState, PageHeader } from '@/components/empty-state';
+import { PageHeader } from '@/components/empty-state';
+import { CoachChat } from '@/features/coach/components/coach-chat';
 
-export default function Page() {
+export default function CoachPage() {
   return (
     <>
       <PageHeader title="Coach" subtitle="Pergunte sobre seus dados em linguagem natural." />
-      <EmptyState title="Coach em breve">
-        Quando houver dados registrados, o Coach responde perguntas como “Como foi minha semana?”.
-      </EmptyState>
+      <CoachChat />
     </>
   );
 }

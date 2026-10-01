@@ -47,6 +47,7 @@ export function toExerciseDto(b: ExerciseBundle): ExerciseDto {
 function toLite(b: ExerciseBundle): ExerciseLite {
   return {
     id: b.exercise.id,
+    name: b.exercise.namePt,
     movementPattern: b.exercise.movementPattern,
     mechanics: b.exercise.mechanics,
     equipmentCodes: b.exercise.equipmentCodes,

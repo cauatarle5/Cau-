@@ -229,6 +229,26 @@ describe('rankAlternatives (P8.4)', () => {
     expect(ranked.map((r) => r.exercise.id)).toContain('machine-press');
     expect(ranked.map((r) => r.exercise.id)).not.toContain('squat');
   });
+
+  it('ties: closest name variation first, then alphabetical (deterministic)', () => {
+    const named = (id: string, name: string) => ex(id, { name, equipmentCodes: ['bodyweight'] });
+    const ranked = rankAlternatives(
+      { ...target, name: 'Supino reto com barra' },
+      [
+        named('a', 'Supino no Smith'),
+        named('b', 'Flexão de braço'),
+        named('c', 'Supino reto com halteres'),
+        named('d', 'Supino inclinado com halteres'),
+      ],
+      { availableEquipment: null, preferences: new Map(), contraindicated: new Set() },
+    );
+    expect(ranked.map((r) => r.exercise.name)).toEqual([
+      'Supino reto com halteres',
+      'Supino inclinado com halteres',
+      'Supino no Smith',
+      'Flexão de braço',
+    ]);
+  });
 });
 
 describe('recordTimeline (recalculável)', () => {

@@ -32,7 +32,8 @@ export default defineConfig({
       reuseExistingServer: !isCI,
       timeout: 60_000,
       // Vários cadastros/logins seguidos do mesmo IP durante a suíte.
-      env: { AUTH_RATE_LIMIT_MAX: '100' },
+      // Coach roteirizado, sem rede (ADR-056); nunca em produção.
+      env: { AUTH_RATE_LIMIT_MAX: '100', AI_FAKE: 'true' },
     },
     {
       command: 'pnpm --filter @atlas/web dev',
