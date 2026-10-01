@@ -1,4 +1,11 @@
-import { addDays, contextFlags, daysBetween, isHardSet, tonnage } from '@atlas/core';
+import {
+  addDays,
+  contextFlags,
+  daysBetween,
+  isHardSet,
+  logCompleteness,
+  tonnage,
+} from '@atlas/core';
 import type { DailyContextDto } from '@atlas/schemas';
 
 import type { BodyService } from '../body/service';
@@ -37,7 +44,8 @@ export function createDailyContextService(deps: {
           agenda().listPlanned(userId, date, date),
           training().listSessions(ctx, { from: date, to: date }),
           body.trend(userId, addDays(date, -365), date),
-          insights.top(userId),
+          // O insight do topo é o de agora: só para o dia de hoje.
+          date === ctx.today ? insights.top(userId) : null,
         ]);
 
       const plan = planned.find((p) => p.status !== 'skipped') ?? null;
@@ -92,7 +100,7 @@ export function createDailyContextService(deps: {
           planned: summary.planned,
           remaining: summary.remaining,
           loggedMeals: summary.loggedMeals,
-          completeness: Math.min(1, summary.loggedMeals / 3),
+          completeness: logCompleteness(summary.loggedMeals),
         },
         body: {
           weightTrendKg: latest ? Math.round(latest.trendKg * 100) / 100 : null,

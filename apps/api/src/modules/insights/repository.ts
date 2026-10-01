@@ -7,6 +7,7 @@ import {
   exercises,
   gt,
   gte,
+  inArray,
   insights,
   isNull,
   lt,
@@ -120,7 +121,7 @@ export function createInsightsRepository(db: Database) {
 
     // GET adaptativo ------------------------------------------------------
 
-    async latestEstimate(userId: string, opts: { before?: string; usable?: boolean } = {}) {
+    async latestEstimate(userId: string, opts: { before?: string } = {}) {
       const [row] = await db
         .select()
         .from(energyEstimates)
@@ -128,12 +129,19 @@ export function createInsightsRepository(db: Database) {
           and(
             eq(energyEstimates.userId, userId),
             ...(opts.before ? [lt(energyEstimates.weekStart, opts.before)] : []),
-            ...(opts.usable ? [sql`${energyEstimates.confidence} <> 'low'`] : []),
           ),
         )
         .orderBy(desc(energyEstimates.weekStart))
         .limit(1);
       return row;
+    },
+
+    async hasEstimate(userId: string, weekStart: string) {
+      const [row] = await db
+        .select({ id: energyEstimates.id })
+        .from(energyEstimates)
+        .where(and(eq(energyEstimates.userId, userId), eq(energyEstimates.weekStart, weekStart)));
+      return row !== undefined;
     },
 
     listEstimates(userId: string, limit: number) {
@@ -168,6 +176,33 @@ export function createInsightsRepository(db: Database) {
     async saveInsights(userId: string, now: Date, rows: readonly NewInsight[]) {
       await db.transaction(async (tx) => {
         await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`insights:${userId}`}))`);
+        // Ativos que a regra não gera mais deixam de valer (o dispensado fica como está).
+        const current = new Set(rows.map((r) => `${r.type}|${r.dedupKey}`));
+        const active = await tx
+          .select({ id: insights.id, type: insights.type, dedupKey: insights.dedupKey })
+          .from(insights)
+          .where(
+            and(
+              eq(insights.userId, userId),
+              gt(insights.expiresAt, now),
+              sql`${insights.status} <> 'dismissed'`,
+            ),
+          );
+        const resolved = active.filter((a) => !current.has(`${a.type}|${a.dedupKey}`));
+        if (resolved.length > 0) {
+          await tx
+            .update(insights)
+            .set({ expiresAt: now, updatedAt: now })
+            .where(
+              and(
+                eq(insights.userId, userId),
+                inArray(
+                  insights.id,
+                  resolved.map((r) => r.id),
+                ),
+              ),
+            );
+        }
         for (const r of rows) {
           const [existing] = await tx
             .select()
@@ -229,6 +264,11 @@ export function createInsightsRepository(db: Database) {
 
     async purgeIdempotencyKeys(before: Date) {
       await db.execute(sql`delete from idempotency_keys where created_at < ${before}`);
+    },
+
+    /** Limpeza global de insights expirados há tempo (job diário). */
+    async purgeExpiredInsights(before: Date) {
+      await db.delete(insights).where(lt(insights.expiresAt, before));
     },
   };
 }

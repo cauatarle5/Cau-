@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { contextFlags } from '../context/flags';
 
+import { logCompleteness, perWeek, relativePerformance, strengthTrend } from './performance';
 import { comparePeriods, periodSummary, type PeriodInput } from './summary';
 
 const input: PeriodInput = {
@@ -212,5 +213,41 @@ describe('contextFlags (P9)', () => {
     expect(contextFlags({ ...base, sleepHours: 5.5 })).toEqual(['POOR_SLEEP']);
     expect(contextFlags({ ...base, sleepQuality: 2 })).toEqual(['POOR_SLEEP']);
     expect(contextFlags({ ...base, acwr: 1.51 })).toEqual(['HIGH_ACWR']);
+  });
+});
+
+describe('performance helpers', () => {
+  it('relativePerformance: tonnage vs the mean of sessions with the same name', () => {
+    const r = relativePerformance([
+      { date: 'd1', name: 'A', tonnage: 9000 },
+      { date: 'd2', name: 'A', tonnage: 11000 },
+      { date: 'd3', name: 'B', tonnage: 5000 },
+    ]);
+    expect(r.map((x) => x.date)).toEqual(['d1', 'd2']);
+    expect(r[0]?.index).toBeCloseTo(90, 10);
+    expect(r[1]?.index).toBeCloseTo(110, 10);
+  });
+
+  it('strengthTrend: first/last/best, change and drops', () => {
+    const all = [
+      { date: '2026-03-01', e1rm: 100 },
+      { date: '2026-03-08', e1rm: 102 },
+      { date: '2026-03-15', e1rm: 104 },
+      { date: '2026-03-22', e1rm: 106 },
+      // Média das 3 anteriores = 104; 98 ≤ 98,8 → queda.
+      { date: '2026-03-29', e1rm: 98 },
+    ];
+    const t = strengthTrend(all, '2026-03-08', '2026-03-23');
+    expect(t).toMatchObject({ first: 102, last: 98, best: 106, sessions: 4 });
+    expect(t?.changePct).toBeCloseTo(-3.92, 2);
+    expect(t?.drops).toEqual([{ date: '2026-03-29', e1rm: 98, previousMean: 104 }]);
+    expect(strengthTrend(all, '2026-04-01', '2026-04-01')).toBeNull();
+  });
+
+  it('perWeek and logCompleteness', () => {
+    expect(perWeek(30, 28)).toBe(7.5);
+    expect(perWeek(5, 3)).toBe(5);
+    expect(logCompleteness(2)).toBeCloseTo(2 / 3, 10);
+    expect(logCompleteness(5)).toBe(1);
   });
 });

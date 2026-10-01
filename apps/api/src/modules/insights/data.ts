@@ -4,7 +4,7 @@ import {
   dateRange,
   isHardSet,
   isStagnant,
-  performanceDrop,
+  strengthTrend,
   tonnage,
   type NutritionDay,
   type SetLike,
@@ -156,35 +156,21 @@ export function createMetricsData(deps: {
       const all = exposures
         .map((e) => ({ date: e.date, e1rm: bestE1rm(e.sets) }))
         .filter((p): p is { date: string; e1rm: number } => p.e1rm !== null);
-      const points = all.filter((p) => p.date >= from);
-      const first = points[0];
-      const last = points.at(-1);
+      const t = strengthTrend(all, from, addDays(to, -6));
+      if (!t) continue;
       const name = names.get(id) ?? '';
-      if (!first || !last) continue;
       out.push({
         exerciseId: id,
         name,
-        sessions: points.length,
-        firstE1rm: first.e1rm,
-        lastE1rm: last.e1rm,
-        bestE1rm: Math.max(...points.map((p) => p.e1rm)),
-        changePct: ((last.e1rm - first.e1rm) / first.e1rm) * 100,
+        sessions: t.sessions,
+        firstE1rm: t.first,
+        lastE1rm: t.last,
+        bestE1rm: t.best,
+        changePct: t.changePct,
         stagnant: isStagnant(exposures, to),
-        points,
+        points: t.points,
       });
-      all.forEach((p, i) => {
-        if (p.date < addDays(to, -6)) return;
-        const previous = all.slice(Math.max(0, i - 3), i).map((x) => x.e1rm);
-        if (performanceDrop(p.e1rm, previous)) {
-          drops.push({
-            exerciseId: id,
-            name,
-            date: p.date,
-            e1rm: p.e1rm,
-            previousMean: previous.reduce((a, b) => a + b, 0) / previous.length,
-          });
-        }
-      });
+      drops.push(...t.drops.map((d) => ({ exerciseId: id, name, ...d })));
     }
     out.sort((a, b) => b.sessions - a.sessions || a.name.localeCompare(b.name));
     return { exercises: out, drops };

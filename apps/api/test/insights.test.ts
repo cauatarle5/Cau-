@@ -1,7 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { addDays, localDate, weekStart } from '@atlas/core';
-import { activities, bodyMeasurements, dailyCheckins, mealItems, meals } from '@atlas/db';
+import {
+  activities,
+  bodyMeasurements,
+  dailyCheckins,
+  energyEstimates,
+  mealItems,
+  meals,
+  plannedWorkouts,
+} from '@atlas/db';
 
 import { runTick } from '../src/jobs/worker';
 import { createServices } from '../src/services';
@@ -265,6 +273,122 @@ describe('phase 6: day type, adaptive TDEE, insights, context and analytics', ()
       topInsight: Insight | null;
     }>();
     expect(after.topInsight?.type).not.toBe('LOW_PROTEIN_STREAK');
+    // Outro dia: sem insight do topo (é o de agora).
+    const past = (
+      await a.call({ method: 'GET', url: `/api/v1/daily-context/${addDays(today, -1)}` })
+    ).json<{ topInsight: Insight | null }>();
+    expect(past.topInsight).toBeNull();
+  });
+
+  it('insights the rules no longer produce stop being active (ADR-053)', async () => {
+    const a = await onboardedUser(ctx.app, today);
+    const db = ctx.handle.db;
+    for (let i = 1; i <= 5; i++) {
+      await db.insert(activities).values({
+        userId: a.user.id,
+        date: addDays(today, -i),
+        sportCode: 'running',
+        durationMin: 40,
+        intensityRpe: 6,
+        lowerBodyDemand: 2,
+      });
+      await logMeals(a.user.id, addDays(today, -i), [
+        { kcal: 600, proteinG: 20 },
+        { kcal: 700, proteinG: 20 },
+        { kcal: 700, proteinG: 20 },
+      ]);
+    }
+    const types = async () =>
+      (await a.call({ method: 'GET', url: '/api/v1/insights' }))
+        .json<{ items: Insight[] }>()
+        .items.map((i) => i.type);
+    await a.call({ method: 'POST', url: '/api/v1/insights/refresh' });
+    expect(await types()).toContain('LOW_PROTEIN_STREAK');
+    // Completa a proteína em 3 dos 5 dias: a sequência deixa de existir.
+    for (const i of [1, 2, 3])
+      await logMeals(a.user.id, addDays(today, -i), [{ kcal: 600, proteinG: 150 }]);
+    await a.call({ method: 'POST', url: '/api/v1/insights/refresh' });
+    expect(await types()).not.toContain('LOW_PROTEIN_STREAK');
+  });
+
+  it('real plan: started elsewhere or missed workouts are not training days (ADR-053)', async () => {
+    const u = await onboardedUser(ctx.app, today);
+    await u.call({
+      method: 'PUT',
+      url: '/api/v1/availability',
+      payload: {
+        items: [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, maxMinutes: 60, kind: 'gym' })),
+      },
+    });
+    const draft = (
+      await u.call({ method: 'POST', url: '/api/v1/programs/generate', payload: {} })
+    ).json<{ program: Record<string, unknown> }>();
+    const prog = await u.call({
+      method: 'POST',
+      url: '/api/v1/programs',
+      payload: { ...draft.program, activate: true },
+    });
+    expect(prog.statusCode).toBe(201);
+    const programId = prog.json<{ id: string }>().id;
+    const planned = (
+      await u.call({
+        method: 'GET',
+        url: `/api/v1/planned-workouts?from=${today}&to=${addDays(today, 6)}`,
+      })
+    ).json<{ items: { id: string; date: string }[] }>().items;
+    const future = planned.find((p) => p.date > today);
+    expect(future).toBeDefined();
+    if (!future) return;
+    expect((await targetsFor(u.call, future.date)).days[0]?.dayType).toBe('training');
+    // Treino de outro dia iniciado hoje: conta só hoje, no dia da sessão.
+    const s = await u.call({
+      method: 'POST',
+      url: '/api/v1/sessions',
+      payload: { plannedWorkoutId: future.id },
+    });
+    expect(s.statusCode).toBe(201);
+    expect((await targetsFor(u.call, today)).days[0]?.dayType).toBe('training');
+    expect((await targetsFor(u.call, future.date)).days[0]?.dayType).toBe('rest');
+
+    // Agendado ontem e não feito: não é dia de treino.
+    await ctx.handle.db.insert(plannedWorkouts).values({
+      userId: u.user.id,
+      date: addDays(today, -1),
+      programId,
+      templateName: 'Perdido',
+      weekIndex: 0,
+    });
+    expect((await targetsFor(u.call, addDays(today, -1))).days[0]?.dayType).toBe('rest');
+  });
+
+  it('stale or newer low-confidence estimates fall back to the formula (ADR-053)', async () => {
+    const u = await onboardedUser(ctx.app, today);
+    const db = ctx.handle.db;
+    const ws = weekStart(today);
+    const row = (weekStartDate: string, confidence: 'low' | 'medium' | 'high') => ({
+      userId: u.user.id,
+      weekStart: weekStartDate,
+      tdeeFormula: 2600,
+      tdeeObserved: 2400,
+      tdeeUsed: 2450,
+      confidence,
+      loggedDays: 20,
+      weighInCount: 15,
+      inputs: {},
+    });
+    const method = async () => (await targetsFor(u.call, today)).days[0]?.method;
+    await db.insert(energyEstimates).values(row(addDays(ws, -28), 'high'));
+    expect(await method()).toBe('formula');
+    await db.insert(energyEstimates).values(row(addDays(ws, -7), 'medium'));
+    expect(await method()).toBe('adaptive');
+    await db.insert(energyEstimates).values(row(ws, 'low'));
+    expect(await method()).toBe('formula');
+    const list = (await u.call({ method: 'GET', url: '/api/v1/nutrition/energy-estimates' })).json<{
+      current: unknown;
+      items: unknown[];
+    }>();
+    expect(list.current).toBeNull();
+    expect(list.items).toHaveLength(3);
   });
 
   it('analytics summary and compare', async () => {
@@ -369,6 +493,13 @@ describe('phase 6: day type, adaptive TDEE, insights, context and analytics', ()
     // 05:00 local: insights.
     const five = await runTick(deps, new Date(`${addDays(today, 1)}T08:00:00Z`));
     expect(five.insights).toBeGreaterThan(0);
-    expect(five.energy).toBe(0);
+    // Recuperação: a semana corrente ainda não tinha estimativa e foi calculada às 05:00.
+    const after = (
+      await u.call({ method: 'GET', url: '/api/v1/nutrition/energy-estimates' })
+    ).json<{ items: { weekStart: string }[] }>().items;
+    expect(after.map((i) => i.weekStart)).toContain(weekStart(addDays(today, 1)));
+    // Rodar de novo na mesma hora não recalcula (já existe estimativa da semana).
+    const again = await runTick(deps, new Date(`${addDays(today, 1)}T08:00:00Z`));
+    expect(again.energy).toBe(0);
   });
 });

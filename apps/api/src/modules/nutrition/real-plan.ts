@@ -6,14 +6,15 @@ import type { TrainingRepository } from '../training/repository';
 import type { RealDay, RealPlan } from './service';
 
 /**
- * Plano real do intervalo (ADR-048): sessão feita ou treino agendado (não pulado) = academia;
- * sessão com RPE ≥ 8 ou agendado em semana de RIR 1 = treino pesado; atividades registradas.
+ * Plano real do intervalo (ADR-048, ADR-053): sessão feita = academia no dia da sessão; treino
+ * agendado conta só de hoje em diante, se não foi pulado nem iniciado (em qualquer dia); sessão
+ * com RPE ≥ 8 ou agendado em semana de RIR 1 = treino pesado; atividades registradas.
  */
 export function createRealPlanProvider(deps: {
   trainingRepo: TrainingRepository;
   recoveryRepo: RecoveryRepository;
 }) {
-  return async (userId: string, from: string, to: string): Promise<RealPlan> => {
+  return async (userId: string, from: string, to: string, today: string): Promise<RealPlan> => {
     const [planned, sessions, acts] = await Promise.all([
       deps.trainingRepo.listPlanned(userId, { from, to }),
       deps.trainingRepo.sessionDays(userId, from, to),
@@ -29,10 +30,11 @@ export function createRealPlanProvider(deps: {
       return d;
     };
     const agendaWeeks = new Set<string>();
-    const withSession = new Set(sessions.map((s) => s.date));
     for (const p of planned) {
       agendaWeeks.add(weekStart(p.planned.date));
-      if (p.planned.status === 'skipped' || withSession.has(p.planned.date)) continue;
+      // Feito (a sessão conta no dia dela), pulado ou perdido no passado: não é academia.
+      if (p.planned.status === 'skipped' || p.sessionId !== null || p.planned.date < today)
+        continue;
       const d = get(p.planned.date);
       d.gym = true;
       d.hardGym ||= weekPlan(p.planned.weekIndex).rir === 1;

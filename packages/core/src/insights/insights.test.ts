@@ -204,8 +204,8 @@ describe('insight rules (ADR-050)', () => {
       weightKg: trendKg,
       trendKg,
     });
-    // 82 → 81 (1,22%) → 80 (1,23%).
-    const fast = [pt(-14, 82), pt(-7, 81), pt(-1, 80)];
+    // 82 → 81 (1,22%) → 80 (1,23%), uma semana cada.
+    const fast = [pt(-14, 82), pt(-7, 81), pt(0, 80)];
     expect(weightLossTooFast(metrics({ trend: fast }))?.data).toEqual({
       lossPctWeek1: 1.22,
       lossPctWeek2: 1.23,
@@ -213,11 +213,18 @@ describe('insight rules (ADR-050)', () => {
     });
     // Segunda semana com 0,99%: não dispara.
     expect(
-      weightLossTooFast(metrics({ trend: [pt(-14, 82), pt(-7, 81), pt(-1, 80.2)] })),
+      weightLossTooFast(metrics({ trend: [pt(-14, 82), pt(-7, 81), pt(0, 80.2)] })),
     ).toBeNull();
+    // Trecho de 6 dias é normalizado: 1 kg em 6 dias = 1,44%/semana.
+    const six = weightLossTooFast(metrics({ trend: [pt(-14, 82), pt(-7, 81), pt(-1, 80)] }));
+    expect(six?.data.lossPctWeek2).toBe(1.44);
     // Última pesagem antiga (> 3 dias).
     expect(
       weightLossTooFast(metrics({ trend: [pt(-21, 82), pt(-14, 81), pt(-5, 80)] })),
+    ).toBeNull();
+    // Lacuna de 14 dias entre pesagens não conta como uma semana.
+    expect(
+      weightLossTooFast(metrics({ trend: [pt(-21, 82), pt(-7, 81), pt(0, 79.9)] })),
     ).toBeNull();
   });
 

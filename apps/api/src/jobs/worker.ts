@@ -9,6 +9,7 @@ import type { InsightsService } from '../modules/insights/service';
 
 const TICK = 'hourly-tick';
 const IDEMPOTENCY_TTL_DAYS = 7;
+const EXPIRED_INSIGHT_TTL_DAYS = 30;
 
 export interface JobDeps {
   repo: InsightsRepository;
@@ -18,33 +19,40 @@ export interface JobDeps {
 }
 
 /**
- * Uma rodada do job horário (ADR-049): GET adaptativo segunda às 04:00 e insights às 05:00
- * no fuso de cada usuário; limpeza de `idempotency_keys` às 03:00 UTC. Exportado para testes.
+ * Uma rodada do job horário (ADR-049/053): GET adaptativo segunda às 04:00 (ou depois, se a
+ * semana ainda não tem estimativa) e insights às 05:00 no fuso de cada usuário; limpeza de
+ * `idempotency_keys` e de insights expirados às 03:00 UTC. Exportado para testes.
  */
 export async function runTick(deps: JobDeps, now: Date) {
   const users = await deps.repo.usersWithTimezone();
   let energy = 0;
   let insights = 0;
   for (const u of users) {
-    const { hour, weekday } = localClock(now, u.timezone);
-    const today = localDate(now, u.timezone);
     try {
-      if (weekday === 1 && hour === 4) {
-        await deps.energy.refresh(u.id, today);
-        energy += 1;
+      const { hour, weekday } = localClock(now, u.timezone);
+      const today = localDate(now, u.timezone);
+      // Segunda às 04:00; depois disso, recupera a semana se o job daquela hora falhou.
+      if (
+        (weekday === 1 && hour === 4) ||
+        (hour >= 4 && !(await deps.energy.hasWeek(u.id, today)))
+      ) {
+        if ((await deps.energy.refresh(u.id, today)) !== null) energy += 1;
       }
       if (hour === 5) {
         await deps.insights.refresh(u.id, today, now);
         insights += 1;
       }
     } catch (err) {
-      // Um usuário com erro não impede os outros.
+      // Um usuário com erro (inclusive fuso inválido) não impede os outros.
       deps.log.error({ err, userId: u.id }, 'scheduled job failed for user');
     }
   }
   if (now.getUTCHours() === 3) {
     await deps.repo.purgeIdempotencyKeys(
       new Date(now.getTime() - IDEMPOTENCY_TTL_DAYS * 86_400_000),
+    );
+    await deps.repo.purgeExpiredInsights(
+      new Date(now.getTime() - EXPIRED_INSIGHT_TTL_DAYS * 86_400_000),
     );
   }
   return { energy, insights };

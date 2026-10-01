@@ -24,6 +24,9 @@ export function periods(
   const p = PRESETS.find((x) => x.value === preset);
   const current =
     preset === 'custom' || !p ? custom : { from: addDays(today, -(p.days - 1)), to: today };
+  // Datas incompletas no modo personalizado: sem período anterior (a tela mostra o erro).
+  if (!current.from || !current.to || current.from > current.to)
+    return { current, previous: current };
   const length = daysBetween(current.from, current.to) + 1;
   return {
     current,

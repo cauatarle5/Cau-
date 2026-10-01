@@ -343,3 +343,26 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
     - check-ins com cerca de 30% de noites curtas, nenhuma nas últimas 2 semanas.
   - Os dados são montados para gerar insights conhecidos: proteína baixa em 3 dos últimos 5 dias de treino, um exercício congelado (estagnado), recordes recentes e a correlação entre sono e tonelagem. Um teste de integração confere esses insights.
   - No fim, o seed recalcula os recordes, o GET adaptativo das 5 últimas semanas e os insights de hoje.
+
+## ADR-053: Correções da revisão da Fase 6
+- **Status:** aceita (complementa ADR-048 a ADR-051)
+- **Contexto:** a revisão 16.3 encontrou dois problemas altos: dias de treino contados em dobro e um GET adaptativo vencido continuando em uso. Também apontou problemas médios na deduplicação dos insights, nos limites das regras e no worker.
+- **Decisão:**
+  - **Plano real:**
+    - Um treino agendado só conta como academia de hoje em diante, e apenas se não foi pulado nem iniciado. A sessão conta no dia em que foi feita.
+    - No passado, apenas sessões contam: treino perdido não é dia de treino.
+  - **GET adaptativo em uso:**
+    - Vale a estimativa mais recente de qualquer confiança: se ela for `low`, volta a fórmula.
+    - Uma estimativa com mais de 21 dias deixa de valer, tanto para as metas quanto como base do limite de ±150 kcal.
+  - **Insights:**
+    - Chaves estáveis por tipo (`main`, `workouts`, `logging`, exercício ou recorde), o que evita duplicatas entre semanas e mantém o dispensado fora até expirar. `MUSCLE_BELOW_MEV` continua por semana.
+    - Um insight ativo que a regra deixa de gerar expira no refresh.
+    - Expirados há mais de 30 dias são apagados no job diário.
+  - **Perda rápida:** cada trecho é normalizado por semana pelo intervalo real entre as pesagens (de 5 a 10 dias). Lacunas maiores não geram alerta.
+  - **Cálculos movidos para o core:** desempenho relativo, evolução e quedas de e1RM, média semanal e completude do registro.
+  - **Worker:**
+    - O fuso de cada usuário é tratado dentro do `try`.
+    - A partir das 04:00 locais, a semana sem estimativa é calculada, cobrindo uma execução perdida.
+  - **Contexto e telas:**
+    - O `daily-context` de outro dia não traz insight do topo.
+    - O período personalizado é validado no cliente: datas completas, sem futuro, até 400 dias.

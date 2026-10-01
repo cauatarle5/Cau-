@@ -89,7 +89,10 @@ export function insightsRoutes(
       ...base,
       schema: { tags: ['nutrition'], response: { 200: energyEstimatesSchema, ...errors } },
     },
-    (req) => energy.list(authed(req).userId),
+    (req) => {
+      const { userId, today } = authed(req);
+      return energy.list(userId, today);
+    },
   );
 
   r.post(

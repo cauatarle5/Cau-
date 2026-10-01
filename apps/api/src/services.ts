@@ -51,7 +51,7 @@ export function createServices(db: Database) {
     body: bodyService,
     repo: nutritionRepo,
     realPlan: createRealPlanProvider({ trainingRepo, recoveryRepo }),
-    adaptiveTdee: (userId) => energyService.usable(userId),
+    adaptiveTdee: (userId, today) => energyService.usable(userId, today),
   });
   const foodsService = createFoodsService(createFoodsRepository(db));
   const mealsService = createMealsService({

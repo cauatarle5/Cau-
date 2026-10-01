@@ -2,6 +2,7 @@ import {
   addDays,
   evaluateInsights,
   muscleVolume,
+  relativePerformance,
   SEVERITY_RANK,
   weekStart,
   type CorrelationSeries,
@@ -63,13 +64,7 @@ export function createInsightsService(deps: {
       repo.dailyIntake(userId, addDays(from, -1), today),
     ]);
     // Desempenho = tonelagem relativa à média das sessões com o mesmo nome no período.
-    const byName = new Map<string, number[]>();
-    for (const s of sessions) byName.set(s.name, [...(byName.get(s.name) ?? []), s.tonnage]);
-    const perf = sessions.flatMap((s) => {
-      const list = byName.get(s.name) ?? [];
-      const avg = list.reduce((a, b) => a + b, 0) / list.length;
-      return list.length >= 2 && avg > 0 ? [{ date: s.date, index: (s.tonnage / avg) * 100 }] : [];
-    });
+    const perf = relativePerformance(sessions);
     const checkinByDate = new Map(checkins.map((c) => [c.date, c]));
     const completeIntake = new Map(
       intake.filter((d) => d.loggedMeals >= 3).map((d) => [d.date, d]),

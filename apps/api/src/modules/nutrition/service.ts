@@ -43,10 +43,11 @@ export interface NutritionServiceDeps {
   body: BodyService;
   repo: NutritionRepository;
   /** Agenda, sessões e atividades do intervalo (ADR-048); sem ela, só a disponibilidade. */
-  realPlan?: (userId: string, from: string, to: string) => Promise<RealPlan>;
+  realPlan?: (userId: string, from: string, to: string, today: string) => Promise<RealPlan>;
   /** GET adaptativo em uso (confiança média/alta, ADR-051). */
   adaptiveTdee?: (
     userId: string,
+    today: string,
   ) => Promise<{ kcal: number; confidence: 'medium' | 'high' } | null>;
 }
 
@@ -93,7 +94,7 @@ export function createNutritionService({
       profile.listSports(userId),
       profile.listAvailability(userId),
       body.latestBodyFat(userId),
-      adaptiveTdee && !opts.formulaOnly ? adaptiveTdee(userId) : null,
+      adaptiveTdee && !opts.formulaOnly ? adaptiveTdee(userId, today) : null,
     ]);
     if (!prof || !goal || !trend) return { blocked: 'ONBOARDING_INCOMPLETE' as const };
     if (prof.clinicalCondition) return { blocked: 'CLINICAL_CONDITION' as const };
@@ -219,7 +220,7 @@ export function createNutritionService({
     const overrides = new Map(
       existing.filter((s) => s.dayTypeOverridden).map((s) => [s.date, s.dayType]),
     );
-    const real = realPlan ? await realPlan(userId, firstWeek, addDays(lastWeek, 6)) : null;
+    const real = realPlan ? await realPlan(userId, firstWeek, addDays(lastWeek, 6), today) : null;
 
     const days: DayTargetsDto[] = [];
     for (let ws = firstWeek; ws <= lastWeek; ws = addDays(ws, 7)) {

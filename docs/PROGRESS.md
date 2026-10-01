@@ -1,7 +1,7 @@
 # PROGRESS: Atlas
 
 ## Fase atual
-**Fase 5. Periodização, esportes e recuperação: concluída.** Próximo: **Fase 6. Integração e motor de insights.**
+**Fase 6. Integração e motor de insights: concluída.** Próximo: **Fase 7. Coach IA.**
 
 ## Feito
 ### Fase 0. Fundação
@@ -57,13 +57,23 @@
 - **Revisão (checklist 16.3):** 3 problemas altos (histórico da agenda apagado ao reativar/editar o programa; IDOR e 500 no registro de dor) e 4 médios corrigidos com testes (ADR-047); baixos corrigidos.
 - **DoD:** futebol intenso ontem + noite ruim hoje produz treino adaptado com explicação coerente.
 
+### Fase 6. Integração e motor de insights
+- **Core:** GET adaptativo (P5.3: critérios, GET observado, mistura 0,7/0,85, teto de ±150 kcal, confiança; ADR-051), metas com o GET adaptativo sob as travas 5.7; 14 regras de insight + correlações de Pearson (n ≥ 10, |r| ≥ 0,4, texto de associação; ADR-050); resumo de período e comparação A × B; sinais do dia; desempenho relativo, evolução de e1RM, MET de atividade registrada e hora local dos jobs (233 testes).
+- **DB:** `energy_estimates` e `insights` (migration 0011, aditiva).
+- **API:** tipo do dia pelo plano real (agenda, sessões e atividades; ADR-048/053), então mover treino ou registrar futebol muda a meta de hoje e da semana; `GET daily-context/:date`; `GET|POST nutrition/energy-estimates[/refresh]`; `GET insights?status`, `PATCH insights/:id`, `POST insights/refresh` (deduplicação, expiração, dispensado não volta antes de expirar); `GET analytics/summary` e `analytics/compare`; worker pg-boss com job horário por fuso, recuperação de semana perdida e limpezas (ADR-049, `JOBS_ENABLED`); serviços montados por `createServices` (101 testes de integração).
+- **Seed demo:** `pnpm db:seed:demo` cria `demo@atlas.app` / `demo-atlas-2026` com 90 dias determinísticos que disparam proteína baixa, exercício estagnado, recordes e sono × tonelagem; GET adaptativo com confiança alta (ADR-052). CI roda o seed antes do E2E.
+- **Web:** Hoje com tipo do dia, sinais e insight do dia (Entendi/Dispensar); Progresso completo com períodos (4/12 semanas, 6 meses, 1 ano, personalizado) e comparação com o período anterior, corpo e ritmo × alvo, força (ranking e estagnados), volume com mapa corporal em SVG, calendário de consistência, nutrição por tipo de dia, recuperação e lista de insights; Nutrição com "estimativa baseada nos seus dados" e confiança.
+- **E2E:** DoD com o usuário demo: números do Progresso iguais aos da API (peso, ritmo, e1RM, volume, aderência, comparação), insights esperados e dispensa de insight; estimativa adaptativa na Nutrição (15 testes no total).
+- **Revisão (checklist 16.3):** 2 problemas altos (treino iniciado em outro dia contado em dobro; GET adaptativo vencido em uso) e 5 médios (chaves de deduplicação semanais, perda rápida com lacunas, treino perdido como dia de treino, cálculos fora do core, robustez do worker) corrigidos com testes (ADR-053); baixos corrigidos (contexto de outro dia, validação do período, base vencida do teto, limpeza de expirados).
+- **DoD:** com o seed demo, Progresso e insights mostram informações corretas e úteis.
+
 ## Pendente (para fases seguintes)
-- GET adaptativo semanal: Fase 6.
+- Resumo semanal redigido pelo LLM (10.5) e Coach: Fase 7.
 - Plano semanal e lista de compras (Parte 15); IA redigindo sugestões: Fase 7 (números sempre do solver).
 - Leite fluido e itens ausentes na TACO; fallback USDA bloqueado pela rede deste ambiente (OPEN_QUESTIONS).
 - Avaliação do parser com 100 frases e da IA real: Fase 7 (sem `ANTHROPIC_API_KEY` neste ambiente, só as regras foram avaliadas).
-- `daily-context`, recálculo do tipo do dia/metas por atividade registrada, `training_load_daily` + pg-boss e insights (destreino, monotonia, deload antecipado, correlações): Fase 6 (ADR-044).
-- Limpeza de `idempotency_keys` (job) e reversão local de operação offline recusada (OPEN_QUESTIONS).
+- `training_load_daily` e `daily_context` materializados: adiados, calculados sob demanda (ADR-044/049).
+- Reversão local de operação offline recusada (OPEN_QUESTIONS).
 - Treino offline com recarga de página: PWA, Fase 8.
 - Botão flutuante de registro rápido (12.1): entra com os registros que ele aciona.
 - Exportação/exclusão de conta (LGPD) e PWA: Fase 8.
@@ -79,6 +89,8 @@
 - Após reiniciar o contêiner, o Docker pode estar parado: `dockerd &` e depois `pnpm db:up`.
 - Antes de commitar, rode o typecheck de cada pacote sem o cache do turbo (`npx tsc --noEmit` em cada um): o cache já escondeu uma quebra do web num commit intermediário. Com servidores de dev já rodando, o Playwright os reaproveita; o limite de cadastro/login (`AUTH_RATE_LIMIT_MAX=5`) pode derrubar a suíte, então pare-os antes ou suba a API com um limite maior.
 - `apps/web/AGENTS.md` e `apps/web/CLAUDE.md` são gerados pelo `next dev`.
+- O E2E da Fase 6 dispensa um insight do usuário demo: rode `pnpm db:seed:demo` antes de repetir a suíte localmente.
+- Jobs: `JOBS_ENABLED=true` liga o worker pg-boss (cria o schema `pgboss` no banco).
 
 ## Próximo passo
-- `/fase 6`: integração e motor de insights (daily-context, recálculo de metas por treino/atividade, jobs com pg-boss, insights determinísticos e correlações), conforme `docs/ROADMAP.md`.
+- `/fase 7`: Coach IA (ferramentas sobre o core e os insights, system prompt, conversas persistidas, streaming, propostas aceitar/rejeitar, resumo semanal e avaliação das 14 perguntas com o usuário demo), conforme `docs/ROADMAP.md`.

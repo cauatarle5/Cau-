@@ -1,5 +1,5 @@
 import { daysBetween } from '../body/age';
-import { addDays, weekStart } from '../body/dates';
+import { addDays } from '../body/dates';
 import type { TrendPoint } from '../body/weight-trend';
 import type { DayType } from '../nutrition/day-type';
 import type { PrimaryGoal } from '../nutrition/types';
@@ -122,7 +122,7 @@ export function lowProteinStreak(m: InsightMetrics): InsightCandidate | null {
     type: 'LOW_PROTEIN_STREAK',
     category: 'nutrition',
     severity: 'attention',
-    key: weekStart(m.today),
+    key: 'main',
     title: 'Proteína abaixo da meta nos dias de treino',
     body: `Em ${low.length} dos últimos ${days.length} dias de treino a proteína ficou abaixo de 80% da meta (média de ${fmt(avgPct)}% nesses dias). Distribuir proteína nas refeições ajuda a recuperação.`,
     data: {
@@ -200,7 +200,7 @@ export function performanceDropRule(m: InsightMetrics): InsightCandidate | null 
     type: 'PERFORMANCE_DROP',
     category: 'training',
     severity: 'attention',
-    key: weekStart(m.today),
+    key: 'main',
     title: 'Queda de desempenho na semana',
     body: `${list.length} exercícios tiveram e1RM pelo menos 5% abaixo da média das 3 sessões anteriores nos últimos 7 dias (${list.map((d) => d.name).join(', ')}). Vale olhar sono, alimentação e carga.`,
     data: {
@@ -225,7 +225,7 @@ export function highAcwr(m: InsightMetrics): InsightCandidate | null {
     type: 'HIGH_ACWR',
     category: 'recovery',
     severity: 'warning',
-    key: weekStart(m.today),
+    key: 'main',
     title: 'Pico de carga',
     body: `Sua carga dos últimos 7 dias está ${fmt(last.acwr, 2)} vezes a média das últimas semanas (acima de 1,5). Aumentos bruscos elevam o risco de lesão; considere segurar o volume nos próximos dias.`,
     data: {
@@ -246,7 +246,7 @@ export function detraining(m: InsightMetrics): InsightCandidate | null {
     type: 'DETRAINING',
     category: 'recovery',
     severity: 'info',
-    key: weekStart(m.today),
+    key: 'main',
     title: 'Carga em queda há 2 semanas',
     body: `Sua carga semanal está abaixo de 80% da média das últimas semanas há 14 dias (ACWR ${fmt(acwr, 2)}). Se não for um descanso planejado, retomar aos poucos ajuda a manter o condicionamento.`,
     data: { acwr: round(acwr, 2), days: 14 },
@@ -262,7 +262,7 @@ export function highMonotony(m: InsightMetrics): InsightCandidate | null {
     type: 'HIGH_MONOTONY',
     category: 'recovery',
     severity: 'attention',
-    key: weekStart(m.today),
+    key: 'main',
     title: 'Semana muito monótona',
     body: `A monotonia da carga nos últimos 7 dias está em ${fmt(last.monotony7d, 1)} (acima de 2,0): os dias tiveram carga muito parecida. Alternar dias leves e pesados ajuda a recuperação.`,
     data: { monotony: round(last.monotony7d, 2), strain: round(last.strain7d ?? 0) },
@@ -279,15 +279,19 @@ export function weightLossTooFast(m: InsightMetrics): InsightCandidate | null {
   const t7 = trendAt(m.trend, addDays(m.today, -7));
   const t14 = trendAt(m.trend, addDays(m.today, -14));
   if (!t0 || !t7 || !t14 || daysBetween(t0.date, m.today) > 3) return null;
-  if (t7.date === t0.date || t14.date === t7.date) return null;
-  const w1 = (t7.trendKg - t0.trendKg) / t7.trendKg;
-  const w2 = (t14.trendKg - t7.trendKg) / t14.trendKg;
+  const span1 = daysBetween(t7.date, t0.date);
+  const span2 = daysBetween(t14.date, t7.date);
+  // Cada trecho precisa cobrir de 5 a 10 dias para valer como "semana".
+  if (span1 < 5 || span2 < 5 || span1 > 10 || span2 > 10) return null;
+  // Perda normalizada por semana pelo intervalo real entre as pesagens.
+  const w1 = ((t7.trendKg - t0.trendKg) / t7.trendKg) * (7 / span1);
+  const w2 = ((t14.trendKg - t7.trendKg) / t14.trendKg) * (7 / span2);
   if (w1 <= 0.01 || w2 <= 0.01) return null;
   return {
     type: 'WEIGHT_LOSS_TOO_FAST',
     category: 'body',
     severity: 'warning',
-    key: weekStart(m.today),
+    key: 'main',
     title: 'Perda de peso rápida demais',
     body: `Sua tendência de peso caiu ${fmt(w2 * 100, 1)}% e ${fmt(w1 * 100, 1)}% nas duas últimas semanas, acima de 1% por semana. Considere reduzir o déficit para preservar massa magra.`,
     data: {
@@ -335,7 +339,7 @@ export function weightTrendOffGoal(m: InsightMetrics): InsightCandidate | null {
     type: 'WEIGHT_TREND_OFF_GOAL',
     category: 'body',
     severity: 'attention',
-    key: weekStart(m.today),
+    key: 'main',
     title: 'Ritmo de peso fora do objetivo',
     body: `Nas últimas ${Math.round(span / 7)} semanas sua tendência variou ${rate > 0 ? '+' : ''}${fmt(rate, 2)}% por semana; o esperado para o seu objetivo é ${expected}.`,
     data: {
@@ -357,7 +361,7 @@ export function lowConsistency(m: InsightMetrics): InsightCandidate[] {
       type: 'LOW_CONSISTENCY',
       category: 'training',
       severity: 'attention',
-      key: `workouts:${weekStart(m.today)}`,
+      key: 'workouts',
       title: 'Treinos agendados ficando para trás',
       body: `Você fez ${done} dos ${planned} treinos agendados nas últimas 2 semanas (${fmt((done / planned) * 100)}%). Se a agenda não cabe na rotina, ajuste os dias disponíveis.`,
       data: { planned, done, adherencePct: round((done / planned) * 100, 1) },
@@ -372,7 +376,7 @@ export function lowConsistency(m: InsightMetrics): InsightCandidate[] {
       type: 'LOW_CONSISTENCY',
       category: 'nutrition',
       severity: 'info',
-      key: `logging:${weekStart(m.today)}`,
+      key: 'logging',
       title: 'Poucos dias com registro completo',
       body: `Só ${complete} dos últimos 14 dias tiveram 3 ou mais refeições registradas. Com mais dias completos, o gasto passa a ser estimado pelos seus dados.`,
       data: { completeDays: complete, loggedDays: logged, windowDays: 14 },
@@ -434,7 +438,7 @@ export function lowEnergyHardDays(m: InsightMetrics): InsightCandidate | null {
     type: 'LOW_ENERGY_HARD_DAYS',
     category: 'integration',
     severity: 'warning',
-    key: weekStart(m.today),
+    key: 'main',
     title: 'Energia insuficiente nos dias pesados',
     body: `Nos ${hard.length} dias de treino pesado das últimas 2 semanas você comeu em média ${fmt(pct)}% da meta de calorias, e o desempenho caiu nesta semana. Comer mais nesses dias pode ajudar.`,
     data: { hardDays: hard.length, intakePct: round(pct, 1) },
@@ -460,7 +464,7 @@ export function earlyDeload(m: InsightMetrics): InsightCandidate | null {
     type: 'EARLY_DELOAD',
     category: 'training',
     severity: 'attention',
-    key: weekStart(m.today),
+    key: 'main',
     title: 'Considere uma semana de deload',
     body: `Sinais de fadiga acumulada: ${reason}. Uma semana com metade do volume e RIR 4 costuma ajudar a recuperar.`,
     data: {

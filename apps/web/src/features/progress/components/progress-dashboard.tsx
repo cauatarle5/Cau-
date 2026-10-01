@@ -9,7 +9,10 @@ import { InsightList } from '@/features/insights/components/insight-list';
 import { useCompare, useSummary } from '@/features/insights/hooks';
 import { useToday } from '@/lib/use-today';
 import { cn } from '@/lib/utils';
-import { addDays } from '@atlas/core';
+import { addDays, daysBetween } from '@atlas/core';
+
+/** Mesmo limite da API (`analytics/summary`). */
+const MAX_PERIOD_DAYS = 400;
 
 import { PRESETS, periods, type Preset } from '../period';
 
@@ -29,7 +32,12 @@ export function ProgressDashboard() {
   const [preset, setPreset] = useState<Preset>('12w');
   const [custom, setCustom] = useState({ from: addDays(today, -29), to: today });
   const { current, previous } = periods(preset, today, custom);
-  const valid = current.from <= current.to && current.to <= today;
+  const valid =
+    current.from !== '' &&
+    current.to !== '' &&
+    current.from <= current.to &&
+    current.to <= today &&
+    daysBetween(current.from, current.to) < MAX_PERIOD_DAYS;
   const summary = useSummary(current.from, current.to, valid);
   const compare = useCompare(previous, current, valid);
   return (
@@ -83,7 +91,7 @@ export function ProgressDashboard() {
             </div>
             {!valid ? (
               <p role="alert" className="col-span-2 text-sm text-destructive">
-                Escolha um início anterior ao fim, sem datas futuras.
+                Escolha um início anterior ao fim, sem datas futuras e com até 400 dias.
               </p>
             ) : null}
           </div>

@@ -5,6 +5,7 @@ import {
   daysBetween,
   muscleVolume,
   periodSummary,
+  perWeek,
   volumeStatus,
   weekStart,
   type MuscleCode,
@@ -112,15 +113,14 @@ export function createAnalyticsService(deps: {
         profile.trainingContext(userId),
         profile.currentGoal(userId, g.last),
       ]);
-      const weeks = Math.max(1, (daysBetween(from, g.last) + 1) / 7);
+      const periodDays = daysBetween(from, g.last) + 1;
       const volume = muscleVolume(performed).map((v) => {
-        const perWeek = Math.round((v.hardSets / weeks) * 10) / 10;
+        const weekly = perWeek(v.hardSets, periodDays);
         return {
           muscle: v.muscle,
           namePt: names.get(v.muscle) ?? v.muscle,
-          hardSetsPerWeek: perWeek,
-          status: volumeStatus(v.muscle, perWeek, { priority: ctx.priorities.has(v.muscle) })
-            .status,
+          hardSetsPerWeek: weekly,
+          status: volumeStatus(v.muscle, weekly, { priority: ctx.priorities.has(v.muscle) }).status,
         };
       });
       const tonnageByDate = new Map<string, number>();
