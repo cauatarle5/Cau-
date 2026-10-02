@@ -11,8 +11,9 @@ export interface DbHandle {
   close: () => Promise<void>;
 }
 
-export function createDb(connectionString: string): DbHandle {
-  const pool = new pg.Pool({ connectionString, max: 10 });
+/** `max`: conexões do pool (padrão 10; serverless usa poucas por instância, ADR-064). */
+export function createDb(connectionString: string, options: { max?: number } = {}): DbHandle {
+  const pool = new pg.Pool({ connectionString, max: options.max ?? 10 });
   const db = drizzle(pool, { schema, casing: 'snake_case' });
   return { db, pool, close: () => pool.end() };
 }

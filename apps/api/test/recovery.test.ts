@@ -199,6 +199,13 @@ describe('periodization, recovery and adaptation', () => {
     expect(planned[0]).toMatchObject({ status: 'planned', weekIndex: 0, rir: 3 });
 
     const first = planned[0] as Planned;
+    // Em dia de treino (seg/qua/sex) o primeiro já é hoje: leva para amanhã antes de trazer de volta.
+    if (first.date === today)
+      await u.call({
+        method: 'PATCH',
+        url: `/api/v1/planned-workouts/${first.id}`,
+        payload: { date: addDays(today, 1) },
+      });
     const moved = await u.call({
       method: 'PATCH',
       url: `/api/v1/planned-workouts/${first.id}`,

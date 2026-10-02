@@ -55,6 +55,8 @@ jobs:
       WEB_ORIGIN: http://localhost:3000
       API_URL: http://localhost:3001
       LOG_LEVEL: warn
+      # API embutida no Next, como na Vercel (ADR-064); a stack Docker é testada no job Deploy.
+      E2E_EMBEDDED: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

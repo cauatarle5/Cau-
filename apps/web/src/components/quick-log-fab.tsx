@@ -55,7 +55,8 @@ function Form({ kind, today }: { kind: Exclude<Kind, 'workout'>; today: string }
 
 /** Botão flutuante de registro rápido (P12.1), com os formulários existentes num diálogo. */
 export function QuickLogFab() {
-  const pathname = usePathname();
+  // `null` só fora do App Router (a pasta `pages` muda o tipo); aqui é sempre uma rota do app.
+  const pathname = usePathname() ?? '/';
   const router = useRouter();
   const today = useToday();
   const dialogRef = useRef<HTMLDialogElement>(null);

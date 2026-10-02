@@ -29,7 +29,8 @@ function isActive(pathname: string, href: string) {
 }
 
 export function AppShell({ userName, children }: { userName: string; children: ReactNode }) {
-  const pathname = usePathname();
+  // `null` só fora do App Router (a pasta `pages` muda o tipo); aqui é sempre uma rota do app.
+  const pathname = usePathname() ?? '/';
   const initial = userName.trim().charAt(0).toUpperCase() || '?';
 
   return (

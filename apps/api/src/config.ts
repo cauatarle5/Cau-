@@ -4,6 +4,9 @@ const booleanString = z.enum(['true', 'false']).transform((v) => v === 'true');
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  // Ambiente do app quando o processo hospedeiro fixa NODE_ENV (Next embutido força production):
+  // o E2E usa APP_ENV=test (ADR-064). Em produção, não definir.
+  APP_ENV: z.enum(['development', 'test', 'production']).optional(),
   DATABASE_URL: z.string().min(1),
   API_HOST: z.string().default('0.0.0.0'),
   API_PORT: z.coerce.number().int().positive().default(3001),
@@ -13,8 +16,11 @@ const envSchema = z.object({
     .url()
     .default('http://localhost:3000')
     .transform((u) => new URL(u).origin),
-  // Proxies confiáveis para X-Forwarded-For: `loopback` ou lista de IPs/CIDRs separada por vírgula.
+  // Proxies confiáveis para X-Forwarded-For: `loopback`, lista de IPs/CIDRs separada por vírgula ou
+  // `true` (todos: só atrás de um proxy que sobrescreve o header, como a Vercel, ADR-064).
   TRUST_PROXY: z.string().default('loopback'),
+  // Segredo da rodada horária de jobs por HTTP (`POST /internal/tick`, ADR-064); sem ele, rota fechada.
+  CRON_SECRET: z.string().min(32, { message: 'CRON_SECRET precisa de 32+ caracteres' }).optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   AI_MODEL_FAST: z.string().optional(),
   AI_MODEL_CHAT: z.string().optional(),
@@ -38,7 +44,8 @@ export interface AppConfig {
   cookieSecure: boolean;
   /** Tentativas por minuto em login (por IP e por e-mail) e cadastro (por IP). */
   authRateLimitMax: number;
-  trustProxy: string;
+  trustProxy: string | boolean;
+  cronSecret: string | undefined;
   anthropicApiKey: string | undefined;
   aiModelFast: string | undefined;
   aiRateLimitMax: number;
@@ -50,18 +57,20 @@ export interface AppConfig {
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = envSchema.parse(env);
-  if (parsed.AI_FAKE && parsed.NODE_ENV === 'production')
+  const nodeEnv = parsed.APP_ENV ?? parsed.NODE_ENV;
+  if (parsed.AI_FAKE && nodeEnv === 'production')
     throw new Error('AI_FAKE não pode ser usado em produção');
   return {
-    nodeEnv: parsed.NODE_ENV,
+    nodeEnv,
     databaseUrl: parsed.DATABASE_URL,
     host: parsed.API_HOST,
     port: parsed.API_PORT,
     logLevel: parsed.LOG_LEVEL,
     webOrigin: parsed.WEB_ORIGIN,
-    cookieSecure: parsed.COOKIE_SECURE ?? parsed.NODE_ENV === 'production',
+    cookieSecure: parsed.COOKIE_SECURE ?? nodeEnv === 'production',
     authRateLimitMax: parsed.AUTH_RATE_LIMIT_MAX,
-    trustProxy: parsed.TRUST_PROXY,
+    trustProxy: parsed.TRUST_PROXY === 'true' ? true : parsed.TRUST_PROXY,
+    cronSecret: parsed.CRON_SECRET || undefined,
     anthropicApiKey: parsed.ANTHROPIC_API_KEY || undefined,
     aiModelFast: parsed.AI_MODEL_FAST || undefined,
     aiRateLimitMax: parsed.AI_RATE_LIMIT_MAX,

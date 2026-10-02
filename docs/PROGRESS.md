@@ -119,5 +119,5 @@
 
 ## Próximo passo
 - Com `ANTHROPIC_API_KEY`: `pnpm db:seed:demo` e depois `AI_MODEL_CHAT=claude-sonnet-5-5 pnpm ai:eval:coach`. Analisar o relatório; se não der 14/14, ajustar o prompt ou as ferramentas.
-- Deploy no servidor do dono: escolher VPS e domínio, `cp deploy/.env.production.example deploy/.env`, preencher e subir (`docs/DEPLOY.md`). Configurar o S3 do backup. Rodar `deploy/test-backup.sh` e o smoke contra o domínio.
+- Deploy na Vercel + Supabase seguindo `docs/DEPLOY-VERCEL.md`: Supabase (URL do pooler), segredos do GitHub (`DATABASE_URL`, `CRON_SECRET`, `BACKUP_PASSPHRASE`, variável `ATLAS_URL`), Release manual, projeto na Vercel (raiz `apps/web`, variáveis, região gru1, domínio), smoke e primeiro backup.
 - Duas semanas de uso real (DoD da Fase 8): anotar bloqueios aqui e corrigi-los antes de qualquer fase nova (Fase 9+ é futura e não deve ser implementada sem decisão).

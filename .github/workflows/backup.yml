@@ -1,0 +1,90 @@
+# Backup diário do banco de produção (ADR-064): pg_dump, teste de restauração num Postgres
+# temporário (comparação das contagens) e artefato cifrado (GPG AES-256) guardado por 30 dias.
+# Segredos: DATABASE_URL e BACKUP_PASSPHRASE. Restauração: docs/DEPLOY-VERCEL.md.
+name: Backup (banco)
+
+on:
+  schedule:
+    - cron: '17 9 * * *' # 06:17 em São Paulo
+  workflow_dispatch:
+
+concurrency:
+  group: backup-db
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Dump, restauração e artefato
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      restore:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: restore
+          POSTGRES_DB: restore
+        ports:
+          - 5439:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d restore"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      RESTORE_URL: postgres://postgres:restore@localhost:5439/restore
+      # Cliente na mesma versão (ou mais nova) do servidor do Supabase.
+      PG: docker run --rm --network host -v ${{ github.workspace }}/out:/out postgres:17-alpine
+    steps:
+      - name: Segredos configurados?
+        id: check
+        run: |
+          if [ -z "$DATABASE_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::notice::DATABASE_URL ou BACKUP_PASSPHRASE não configurado; backup ignorado."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Dump (schemas do app)
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          mkdir -p out
+          $PG pg_dump "$DATABASE_URL" -Fc --no-owner --no-privileges \
+            --schema=public --schema=drizzle -f /out/atlas.dump
+          $PG pg_restore --list /out/atlas.dump > /dev/null
+          ls -lh out/atlas.dump
+      - name: Restauração de teste e comparação das contagens
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          # Extensões ficam fora do dump por schema: cria antes, como no banco de origem.
+          $PG psql "$RESTORE_URL" -v ON_ERROR_STOP=1 -q \
+            -c 'create extension if not exists citext; create extension if not exists pg_trgm; create extension if not exists unaccent;'
+          # O schema public já existe no destino: restaura por uma lista sem a criação dele.
+          $PG pg_restore -l /out/atlas.dump | grep -vE " SCHEMA - public | COMMENT - SCHEMA public " > out/atlas.list
+          $PG pg_restore --no-owner --no-privileges --exit-on-error -L /out/atlas.list \
+            -d "$RESTORE_URL" /out/atlas.dump
+          COUNT_SQL="select coalesce(string_agg(format('%s=%s', t, (xpath('/row/c/text()',
+            query_to_xml(format('select count(*) as c from public.%I', t), false, true, '')))[1]::text), ' ' order by t), '')
+            from (select tablename as t from pg_tables where schemaname = 'public') s"
+          src=$($PG psql "$DATABASE_URL" -X -At -c "$COUNT_SQL")
+          dst=$($PG psql "$RESTORE_URL" -X -At -c "$COUNT_SQL")
+          if [ "$src" != "$dst" ]; then
+            echo "::error::Contagens diferentes entre o banco e o restauro (escrita durante o backup?)"
+            echo "origem:   $src"; echo "restauro: $dst"
+            exit 1
+          fi
+          echo "OK: $(echo "$src" | wc -w) tabelas com as mesmas contagens"
+      - name: Cifra
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          name="atlas-$(date -u +%Y%m%d-%H%M%S).dump.gpg"
+          gpg --batch --yes --pinentry-mode loopback --symmetric --cipher-algo AES256 \
+            --passphrase "$BACKUP_PASSPHRASE" -o "out/$name" out/atlas.dump
+          rm out/atlas.dump out/atlas.list
+          echo "BACKUP_FILE=out/$name" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        if: steps.check.outputs.skip != 'true'
+        with:
+          name: atlas-backup-${{ github.run_id }}
+          path: ${{ env.BACKUP_FILE }}
+          retention-days: 30
+          if-no-files-found: error

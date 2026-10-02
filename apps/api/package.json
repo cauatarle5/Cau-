@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:seed:demo": "tsx --env-file-if-exists=../../.env scripts/seed-demo.ts",
-    "ai:eval:coach": "tsx --env-file-if-exists=../../.env scripts/eval-coach.ts"
+    "ai:eval:coach": "tsx --env-file-if-exists=../../.env scripts/eval-coach.ts",
+    "release": "tsx --env-file-if-exists=../../.env scripts/release.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.129.0",
@@ -40,5 +41,8 @@
     "testcontainers": "^12.2.0",
     "tsup": "^8.5.1",
     "tsx": "^4.23.15"
+  },
+  "exports": {
+    "./embedded": "./src/embedded.ts"
   }
 }

@@ -20,6 +20,7 @@ import {
 import type { Database } from '@atlas/db';
 
 import type { AppConfig } from './config';
+import { tickRoute } from './jobs/tick-route';
 import { startJobs } from './jobs/worker';
 import { accountRoutes, createAccountRepository, createAccountService } from './modules/account';
 import { analyticsRoutes } from './modules/analytics';
@@ -166,16 +167,19 @@ export async function buildApp({
     { prefix: '/api/v1' },
   );
 
+  const jobDeps = {
+    repo: svc.insightsRepo,
+    energy: svc.energy,
+    insights: svc.insights,
+    coach,
+    log: app.log,
+  };
+  if (config.cronSecret) tickRoute(app, { secret: config.cronSecret, deps: jobDeps });
+
   if (config.jobsEnabled) {
     let stopJobs: (() => Promise<void>) | null = null;
     app.addHook('onReady', async () => {
-      stopJobs = await startJobs(config.databaseUrl, {
-        repo: svc.insightsRepo,
-        energy: svc.energy,
-        insights: svc.insights,
-        coach,
-        log: app.log,
-      });
+      stopJobs = await startJobs(config.databaseUrl, jobDeps);
     });
     app.addHook('onClose', async () => {
       await stopJobs?.();

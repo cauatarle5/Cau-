@@ -523,3 +523,29 @@ Formato: contexto, decisão, consequências. Status: `aceita` | `substituída po
   - **Service worker (`v2`):** não guarda respostas redirecionadas e limita os caches a 300 estáticos e 40 páginas, preservando o pré-cache.
   - **Caddy:** `X-Frame-Options: DENY` e `frame-ancestors 'none'`.
   - **Botão de registro rápido:** reinicia o estado ao trocar de tela.
+
+## ADR-064: Produção na Vercel com Supabase e GitHub Actions
+- **Status:** aceita (alternativa à ADR-058; a stack Docker Compose continua suportada e testada no CI)
+- **Contexto:** o dono escolheu publicar com Vercel, GitHub e Supabase, sem um host de containers. A Vercel não roda processo contínuo (API sempre ligada, worker pg-boss) nem Postgres.
+- **Decisão:**
+  - **Um projeto na Vercel (raiz `apps/web`):**
+    - Com `EMBEDDED_API=true`, a mesma API Fastify roda dentro do Next por uma rota `pages/api/v1/[...path]`, que entrega o request Node ao Fastify (`app.routing`). O streaming do Coach é preservado.
+    - Mesmo domínio e mesmo cookie, sem CORS e sem salto de proxy (ADR-007).
+    - Sem `EMBEDDED_API`, o Next mantém o rewrite para `API_URL` (dev, testes, Docker).
+  - **Banco: Supabase Postgres:**
+    - Conexão pelo pooler em modo sessão, porque a conexão direta é só IPv6.
+    - Pool pequeno por instância serverless.
+    - A etapa de release habilita RLS (sem políticas) em todas as tabelas de `public`: a Data API do Supabase não enxerga nada. O app conecta como dono das tabelas e não é afetado.
+  - **Jobs:** sem pg-boss em produção (`JOBS_ENABLED=false`).
+    - `POST /api/v1/internal/tick`, protegido por `CRON_SECRET` (Bearer, comparação em tempo constante), roda o mesmo `runTick`.
+    - Um workflow agendado do GitHub Actions chama a rota de hora em hora.
+  - **Release:** um workflow no push para `main` roda migrations, catálogos e RLS com o `DATABASE_URL` dos segredos do repositório.
+  - **Backup diário:**
+    - workflow agendado faz `pg_dump -Fc` com cliente Postgres 17, cifra com GPG (AES-256, frase em segredo) e guarda como artefato privado do repositório por 30 dias;
+    - no mesmo job, restaura num Postgres temporário e compara as contagens de todas as tabelas;
+    - os backups automáticos do Supabase continuam valendo como segunda camada.
+  - **Proxy confiável:** `TRUST_PROXY=true` aceita o `X-Forwarded-For`, que a Vercel sobrescreve com o IP real (cliente não falsifica).
+- **Consequências:**
+  - Os limites em memória (rate limit, um turno do Coach por vez) valem por instância. O limite diário de tokens é no banco e continua global.
+  - A rodada horária depende do agendador do GitHub, que pode atrasar minutos. Jobs com "recuperação" (TDEE e resumo semanal) não perdem a semana; os insights do dia podem atrasar um dia se a rodada das 05:00 locais falhar.
+  - Resposta longa do Coach fica limitada ao tempo máximo da função (300 s).

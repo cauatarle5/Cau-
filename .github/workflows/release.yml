@@ -1,0 +1,41 @@
+# Release do banco de produção (ADR-064): migrations, catálogos e RLS a cada push na main.
+# Segredo: DATABASE_URL (Supabase, pooler em modo sessão). Sem ele, o job só avisa e termina.
+name: Release (banco)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release-db
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Migrations, catálogos e RLS
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - name: Segredo configurado?
+        id: check
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::notice::DATABASE_URL não configurado nos segredos do repositório; release ignorado."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.skip != 'true'
+      - uses: pnpm/action-setup@v4
+        if: steps.check.outputs.skip != 'true'
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.skip != 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - if: steps.check.outputs.skip != 'true'
+        run: pnpm install --frozen-lockfile --filter @atlas/api...
+      - if: steps.check.outputs.skip != 'true'
+        run: pnpm --filter @atlas/api release

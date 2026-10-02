@@ -34,6 +34,7 @@ export async function createTestApp(
       cookieSecure: false,
       authRateLimitMax: 1000,
       trustProxy: 'loopback',
+      cronSecret: undefined,
       jobsEnabled: false,
       aiModelChat: undefined,
       aiDailyTokenLimit: 200_000,

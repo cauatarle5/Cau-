@@ -14,7 +14,8 @@ function cachePage(url: string) {
  * pede para guardar cada página visitada, inclusive as abertas pelo router no cliente (ADR-060).
  */
 export function ServiceWorker() {
-  const pathname = usePathname();
+  // `null` só fora do App Router (a pasta `pages` muda o tipo); aqui é sempre uma rota do app.
+  const pathname = usePathname() ?? '/';
 
   useEffect(() => {
     if (!enabled()) return;
